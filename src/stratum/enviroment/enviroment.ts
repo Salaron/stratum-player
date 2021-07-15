@@ -270,6 +270,34 @@ export class Enviroment implements EnviromentFunctions {
         }
     }
 
+    getBitmapSrcRect2d(
+        hspace: number,
+        hobject: number,
+        xArr: MutableArrayLike<number>,
+        xId: number,
+        yArr: MutableArrayLike<number>,
+        yId: number,
+        wArr: MutableArrayLike<number>,
+        wId: number,
+        hArr: MutableArrayLike<number>,
+        hId: number
+    ): NumBool {
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (obj?.type !== "image") {
+            xArr[xId] = 0;
+            yArr[yId] = 0;
+            wArr[wId] = 0;
+            hArr[hId] = 0;
+            return 0;
+        }
+        const rect = obj.cropArea();
+        xArr[xId] = rect?.x ?? 0;
+        yArr[yId] = rect?.y ?? 0;
+        wArr[wId] = rect?.w ?? obj.image._tool.width();
+        hArr[hId] = rect?.h ?? obj.image._tool.height();
+        return 1;
+    }
+
     getVarInfo(
         classname: string,
         varIdx: number,

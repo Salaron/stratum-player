@@ -5,6 +5,7 @@ import {
     envVar,
     EXIT_CODE,
     getActualSize2dFunc,
+    getBitmapSrcRect2dFunc,
     getDateFunc,
     getMousePosFunc,
     getTimeFunc,
@@ -224,6 +225,11 @@ class ExprGenerator {
             const a2 = this.derefer(op.args[1]);
             const a3 = this.derefer(op.args[2]);
             return { f: `${envVar}.${getMousePosFunc}(${a1},${a2},${a3})` };
+        }
+        if (nameUC === "GETBITMAPSRCRECT2D") {
+            const f1 = op.args.slice(0, 2).map((a) => this.parseExpr(a));
+            const f2 = op.args.slice(2).map((a) => this.derefer(a));
+            return { f: `${envVar}.${getBitmapSrcRect2dFunc}(${f1},${f2})` };
         }
         if (nameUC === "RANDOMIZE") {
             return { f: "" };
