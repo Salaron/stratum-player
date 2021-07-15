@@ -2616,6 +2616,20 @@ export class Enviroment implements EnviromentFunctions {
         const child = cl.children.find((c) => c.handle === hobject);
         return child ? child.classname : "";
     }
+    private setObjectNameShowed = false;
+    stratum_setObjectName(classname: string, hobject: number, name: string): NumBool {
+        if (!this.setObjectNameShowed) {
+            this.setObjectNameShowed = true;
+            console.warn("setObjectName не реализована");
+        }
+        return 1;
+        // const cl = this.classes.get(classname);
+        // if (!cl) return 0;
+        // const child = cl.children.find((c) => c.handle === hobject);
+        // if (!child) return 0;
+        // console.log(child);
+        // return 1;
+    }
     stratum_getLink(classname: string, hobject1: number, hobject2: number): number {
         const cl = this.classes.get(classname);
         if (!cl) return 0;
