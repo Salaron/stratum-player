@@ -17,10 +17,15 @@ body {
   border: inset 2px;
 }
 
-.stratum-window {
+/* .stratum-window:hover {
+  z-index: 55555;
+  transform: scale(1.05);
+} */
+
+/* .stratum-window {
   min-width: 300px;
   min-height: 200px;
-}
+} */
 
 #main_window_container {
   flex: 1 1 auto;
