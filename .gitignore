@@ -172,7 +172,6 @@ crashlytics-build.properties
 /dist/*
 !dist/stratum.min.js
 !dist/zipfs.min.js
-!dist/stratum.d.ts
 /static/scripts/*
 !/static/scripts/autorefresh.js
 !/static/scripts/chai.min.js
