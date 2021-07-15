@@ -1,140 +1,60 @@
-import { colorrefToCSSColor } from "stratum/common/colorrefParsers";
-import { Constant } from "stratum/common/constant";
-import { NumBool } from "stratum/common/types";
-import { HandleMap } from "stratum/helpers/handleMap";
+import { ToolKeeperComponent } from "../components/toolKeeperComponent";
 import { Scene } from "../scene";
-import { DIBTool } from "./dibTool";
-import { ToolStorage } from "./toolStorage";
-import { ToolSubscriber } from "./toolSubscriber";
+import { ImageTool } from "./imageTool";
+import { SceneTool } from "./sceneTool";
 
 export interface BrushToolArgs {
-    handle: number;
-    color: number;
-    style: number;
-    hatch: number;
-    rop2: number;
-    dibHandle: number;
+    handle?: number;
+    color?: number;
+    style?: number;
+    hatch?: number;
+    rop?: number;
+    image?: ImageTool | null;
 }
 
-export class BrushTool implements ToolSubscriber {
-    private scene: ToolStorage;
-    private subs: Set<ToolSubscriber>;
-    private _dibTool: DIBTool | null;
-    private _color: number;
-    private _style: number;
-    private _hatch: number;
-    private _rop: number;
-    private _cssColor: string;
-    handle: number;
+export class BrushTool extends SceneTool<BrushTool> {
+    protected _color: number;
+    protected _style: number;
+    protected _hatch: number;
+    protected _rop: number;
 
-    constructor(scene: ToolStorage, { handle, color, hatch, rop2, style, dibHandle }: BrushToolArgs) {
-        this.handle = handle;
-        this.subs = new Set();
-        this._color = color;
-        this._cssColor = colorrefToCSSColor(color);
-        this._style = style;
-        this._hatch = hatch;
-        this._rop = rop2;
-        this._dibTool = (dibHandle && scene.dibs.get(dibHandle)) || null;
-        this._dibTool?.subscribe(this);
-        this.scene = scene;
-    }
-    toolChanged(): void {
-        this.subs.forEach((s) => s.toolChanged(this));
-    }
+    readonly image: ToolKeeperComponent<ImageTool | null>;
 
-    subscribe(sub: ToolSubscriber) {
-        this.subs.add(sub);
-    }
-    unsubscribe(sub: ToolSubscriber) {
-        this.subs.delete(sub);
-    }
-    subCount(): number {
-        return this.subs.size;
-    }
-    copy(scene: Scene): BrushTool {
-        const dibHandle = this._dibTool?.copy(scene, false).handle ?? 0;
-        const handle = HandleMap.getFreeHandle(scene.brushes);
-        const tool = new BrushTool(scene, {
-            handle,
-            color: this._color,
-            dibHandle,
-            hatch: this._hatch,
-            rop2: this._rop,
-            style: this._style,
-        });
-        scene.brushes.set(handle, tool);
-        return tool;
-    }
-
-    dibTool(): DIBTool | null {
-        return this._dibTool;
-    }
-
-    setDIB(hdib: number): NumBool {
-        this._dibTool?.unsubscribe(this);
-        this._dibTool = this.scene.dibs.get(hdib) || null;
-        this._dibTool?.subscribe(this);
-        this.subs.forEach((s) => s.toolChanged(this));
-        return 1;
-    }
-    dibHandle(): number {
-        return this._dibTool?.handle || 0;
+    constructor(scene: Scene, { handle, color, style, hatch, rop, image }: BrushToolArgs = {}) {
+        super(scene, handle);
+        this._color = color ?? 0;
+        this._style = style ?? 0;
+        this._hatch = hatch ?? 0;
+        this._rop = rop ?? 0;
+        this.image = new ToolKeeperComponent(scene, image ?? null);
     }
 
     color(): number {
         return this._color;
     }
-    setColor(color: number): NumBool {
+    setColor(color: number): void {
         this._color = color;
-        this._cssColor = colorrefToCSSColor(color);
-        this.subs.forEach((s) => s.toolChanged(this));
-        return 1;
+        this.dispatchChanges();
     }
     style(): number {
         return this._style;
     }
-    setStyle(style: number): NumBool {
+    setStyle(style: number): void {
         this._style = style;
-        this.subs.forEach((s) => s.toolChanged(this));
-        return 1;
+        this.dispatchChanges();
     }
     hatch(): number {
         return this._hatch;
     }
-    setHatch(hatch: number): NumBool {
+    setHatch(hatch: number): void {
         this._hatch = hatch;
-        return 1;
+        this.dispatchChanges();
     }
     rop(): number {
         return this._rop;
     }
-    setRop(rop: number): NumBool {
+    setRop(rop: number): void {
         this._rop = rop;
-        return 1;
-    }
-
-    compositeOperation(): string {
-        switch (this._rop) {
-            case Constant.R2_MASKPEN:
-                return "multiply";
-            case Constant.R2_NOTXORPEN:
-                return "multiply";
-            default:
-                return "source-over";
-        }
-    }
-
-    fillStyle(ctx: CanvasRenderingContext2D): string | CanvasPattern | null {
-        switch (this._style) {
-            case Constant.BS_SOLID:
-                return this._cssColor;
-            case Constant.BS_NULL:
-                return null;
-            case Constant.BS_PATTERN:
-                return this.dibTool()?.pattern(ctx) ?? "white";
-            default:
-                return "white";
-        }
+        this.dispatchChanges();
     }
 }

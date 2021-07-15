@@ -1,30 +1,51 @@
 import { crefToB, crefToG, crefToR, rgbToCref } from "stratum/common/colorrefParsers";
-import { Constant } from "stratum/common/constant";
+import { Constant, WM_CHAR } from "stratum/common/constant";
 import { EventSubscriber, NumBool } from "stratum/common/types";
 import { VarType } from "stratum/common/varType";
 import { installContextFunctions } from "stratum/compiler";
+import { SceneElement, SceneWrapper } from "stratum/enviroment/sceneWrapper";
 import { readPrjFile } from "stratum/fileFormats/prj";
 import { readSttFile, VariableSet } from "stratum/fileFormats/stt";
 import { Hyperbase, VectorDrawing, WindowStyle } from "stratum/fileFormats/vdr";
-import { Scene } from "stratum/graphics/scene";
-import { SceneWindow, WindowArgs, WindowRect } from "stratum/graphics/sceneWindow";
-import { parseWindowAttribs, WindowAttribs } from "stratum/graphics/windowAttribs";
+import { GroupElement2D } from "stratum/graphics/scene/elements/groupElement2d";
+import { PrimaryElement, Scene, SceneInputEvent, SceneKeyboardEvent, ScenePointerEvent } from "stratum/graphics/scene/scene";
+import { RendererSVG } from "stratum/graphics/scene/svg/rendererSVG";
+import { BrushTool, BrushToolArgs } from "stratum/graphics/scene/tools/brushTool";
+import { FontTool, FontToolArgs } from "stratum/graphics/scene/tools/fontTool";
+import { ImageTool } from "stratum/graphics/scene/tools/imageTool";
+import { PenTool } from "stratum/graphics/scene/tools/penTool";
+import { StringTool, StringToolArgs } from "stratum/graphics/scene/tools/stringTool";
+import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/scene/tools/textTool";
 import { BinaryReader } from "stratum/helpers/binaryReader";
 import { HandleMap } from "stratum/helpers/handleMap";
+import { invertMatrix } from "stratum/helpers/invertMatrix";
 import { getDirectory } from "stratum/helpers/pathOperations";
+import { SuperMap } from "stratum/helpers/superMap";
 import { Point2D } from "stratum/helpers/types";
 import { MutableArrayLike } from "stratum/helpers/utilityTypes";
 import { win1251Table } from "stratum/helpers/win1251";
 import { options } from "stratum/options";
-import { Project } from "stratum/project";
+import { Project, Schema } from "stratum/project";
 import { EnviromentFunctions } from "stratum/project/enviromentFunctions";
 import { ProjectArgs } from "stratum/project/project";
 import { AddDirInfo, CursorRequestHandler, ErrorHandler, PathInfo, ShellHandler, WindowHost } from "stratum/stratum";
 import { EnvArray, EnvArraySortingAlgo } from "./envArray";
 import { EnvStream } from "./envStream";
+import { FrameController } from "./frameController";
+import { copyElement, createElementOrder, createElements } from "./helpers/createNCopyObjects";
+import { createBrushTools, createFontTools, createImageTools, createPenTools, createStringTools, createTextTools } from "./helpers/createNCopyTools";
+import { EnviromentWindowSettings, parseEnviromentWindowSettings } from "./helpers/enviromentWindowSettings";
+import { deleteGroupElements, searchInGroup, switchGroupElementsVisible } from "./helpers/groupOperations";
+import { insertVDR } from "./helpers/insertVDR";
 import { LazyLibrary } from "./lazyLibrary";
 import { NeoMatrix } from "./neoMatrix";
 import { readFile } from "./readFile";
+import { graphicsImpl } from "./toolsAndElementsConstructors";
+
+interface EnviromentCaptureTarget {
+    scene: Scene;
+    receiver: EventSubscriber;
+}
 
 export interface ProjectResources extends ProjectArgs {
     classes: LazyLibrary<number>;
@@ -104,20 +125,25 @@ export class Enviroment implements EnviromentFunctions {
     private _isWaiting: boolean = false;
     private loading: Promise<void> | null = null;
 
-    private windows = new Map<string, SceneWindow<Project>>();
-    private scenes = new Map<number, Scene>();
+    private windows = new Map<string, SceneWrapper>();
+    private scenes = new Map<number, SceneWrapper>();
+    private openedPopups = new Set<SceneWrapper>();
     private streams = new Map<number, EnvStream>();
     private matrices = new Map<number, NeoMatrix>();
     private arrays = new Map<number, EnvArray>();
-    private targetScene: Scene | null = null;
+    private captureTarget: EnviromentCaptureTarget | null = null;
 
     private classes: LazyLibrary<number>;
-    private host: WindowHost;
 
-    constructor(args: ProjectResources, host: WindowHost, private handlers: EnviromentHandlers) {
+    private lastPrimary: number = 0;
+    private copied: SceneElement | null = null;
+
+    private cursorOverHyp: boolean = false;
+    private currentCursor = "default";
+
+    constructor(args: ProjectResources, private host: WindowHost, private handlers: EnviromentHandlers) {
         this.projects = [new Project(this, args)];
         this.classes = args.classes;
-        this.host = host;
     }
 
     private sessionId(): number {
@@ -158,12 +184,9 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     async closeAllRes(): Promise<true> {
+        this.copied = null;
         this._shouldQuit = true;
-        this.windows.forEach((w) => w.close());
-        this.scenes.clear();
-        this.windows.clear();
-        this.targetScene?.releaseCapture();
-        this.targetScene = null;
+        this.closeAllWindows();
         const p: Promise<boolean>[] = [];
         for (const v of this.streams.values()) {
             const r = v.close();
@@ -185,6 +208,8 @@ export class Enviroment implements EnviromentFunctions {
             } catch {}
         }
         this.classes.clearAll();
+        this.currentCursor = "default";
+        this.updateCursor();
         return true;
     }
 
@@ -221,15 +246,28 @@ export class Enviroment implements EnviromentFunctions {
         arr3[day] = time.getDate();
     }
     getActualSize2d(hspace: number, hobject: number, xArr: MutableArrayLike<number>, xId: number, yArr: MutableArrayLike<number>, yId: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        if (typeof obj === "undefined") {
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) {
             xArr[xId] = 0;
             yArr[yId] = 0;
             return 0;
         }
-        xArr[xId] = obj.actualWidth();
-        yArr[yId] = obj.actualHeight();
-        return 1;
+        switch (obj.type) {
+            case "group":
+            case "line":
+            case "input":
+                xArr[xId] = obj.width();
+                yArr[yId] = obj.height();
+                return 1;
+            case "image":
+                xArr[xId] = obj.image.tool().width();
+                yArr[yId] = obj.image.tool().height();
+                return 1;
+            case "text":
+                xArr[xId] = obj.actualWidth();
+                yArr[yId] = obj.actualHeight();
+                return 1;
+        }
     }
 
     getVarInfo(
@@ -264,37 +302,47 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     getMousePos(wname: string, xArr: MutableArrayLike<number>, xId: number, yArr: MutableArrayLike<number>, yId: number): NumBool {
-        const wnd = this.windows.get(wname);
-        if (!wnd) {
+        const wrapper = this.windows.get(wname);
+        if (!wrapper) {
             xArr[xId] = 0;
             yArr[yId] = 0;
             return 0;
         }
-        const [x, y] = Scene.mouseCoords(wnd.scene);
-        xArr[xId] = x + wnd.scene.originX();
-        yArr[yId] = y + wnd.scene.originY();
+        const [realX, realY] = wrapper.scene.mouseCoords();
+
+        const mat = wrapper.invMatrix;
+        if (!mat) {
+            xArr[xId] = realX;
+            yArr[yId] = realY;
+            return 1;
+        }
+
+        const w = realX * mat[2] + realY * mat[5] + mat[8];
+        const x = (realX * mat[0] + realY * mat[3] + mat[6]) / w;
+        const y = (realX * mat[1] + realY * mat[4] + mat[7]) / w;
+        xArr[xId] = x;
+        yArr[yId] = y;
         return 1;
     }
 
     openSchemeWindow(prj: Project, wname: string, className: string, attrib: string): number {
-        const wnd = this.windows.get(wname);
-        if (typeof wnd !== "undefined") return wnd.sceneHandle;
+        const w = this.windows.get(wname);
+        if (w) return w.handle;
 
         const vdr = this.classes.get(className)?.scheme();
-        return this.openWindow(prj, wname, parseWindowAttribs(attrib), vdr);
+        return this.createWindow(prj, wname, parseEnviromentWindowSettings(attrib, vdr));
     }
     loadSpaceWindow(prj: Project, wname: string, fileName: string, attrib: string): number | Promise<number> {
-        const wnd = this.windows.get(wname);
-        if (typeof wnd !== "undefined") return wnd.sceneHandle;
+        const w = this.windows.get(wname);
+        if (w) return w.handle;
 
-        const attribs = parseWindowAttribs(attrib);
         if (fileName === "") {
-            return this.openWindow(prj, wname, attribs);
+            return this.createWindow(prj, wname, parseEnviromentWindowSettings(attrib));
         }
 
         return readFile(prj.dir.resolve(fileName), "vdr")
-            .then((vdr) => this.openWindow(prj, wname, attribs, vdr))
-            .catch(() => this.openWindow(prj, wname, attribs));
+            .then((vdr) => this.createWindow(prj, wname, parseEnviromentWindowSettings(attrib, vdr)))
+            .catch(() => this.createWindow(prj, wname, parseEnviromentWindowSettings(attrib)));
     }
     createWindowEx(
         prj: Project,
@@ -307,48 +355,60 @@ export class Enviroment implements EnviromentFunctions {
         h: number,
         attrib: string
     ): number | Promise<number> {
-        const wnd = this.windows.get(wname);
-        if (typeof wnd !== "undefined") return wnd.sceneHandle;
+        const wrapper = this.windows.get(wname);
+        if (wrapper) return wrapper.handle;
 
         const callback = (vdr?: VectorDrawing | null): number => {
-            const parent = this.windows.get(parentWname);
-            const attribs = parseWindowAttribs(attrib);
-            const rect: WindowRect = { x, y, w, h };
-            if (!parent || !attribs.child) {
-                return this.openWindow(prj, wname, attribs, vdr, rect);
+            const params = parseEnviromentWindowSettings(attrib, vdr);
+            params.position = { x, y };
+            params.size = { width: w, height: h };
+
+            if (params.isChild) {
+                const parent = this.windows.get(parentWname);
+                if (parent) {
+                    return this.createWindowFrame(parent, prj, wname, params);
+                }
             }
-            return this.openSubwindow(parent, prj, wname, attribs, rect, vdr);
+            return this.createWindow(prj, wname, params);
         };
 
         const vdr = this.classes.get(source)?.scheme();
         if (vdr) return callback(vdr);
+
         return readFile(prj.dir.resolve(source), "vdr")
             .then((vdr) => callback(vdr))
             .catch(() => callback());
-        // const wnd: SceneWindow = p.openEx(wname, vdr);
-        // const handle = HandleMap.getFreeHandle(this.scenes);
-        // this.hspaceToWname.set(handle, wname);
-        // this.wnameToHspace.set(wname, handle);
-        // this.scenes.set(handle, wnd.scene);
-        // this.windows.set(wname, wnd);
-        // return handle;
     }
     createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        const scene = this.scenes.get(hspace);
-        if (typeof scene === "undefined") return 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
         return readFile(dir.resolve(fileName), "bmp")
-            .then((img) => scene.createDIBTool(img))
+            .then((img) => {
+                const handle = HandleMap.getFreeHandle(w.dibs);
+                w.dibs.set(handle, new graphicsImpl.dib(w.scene, img, { handle }));
+                return handle;
+            })
             .catch(() => 0);
     }
     createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        const scene = this.scenes.get(hspace);
-        if (typeof scene === "undefined") return 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
         return readFile(dir.resolve(fileName), "dbm")
-            .then((img) => scene.createDoubleDIBTool(img))
+            .then((img) => {
+                const handle = HandleMap.getFreeHandle(w.doubleDibs);
+                w.doubleDibs.set(handle, new graphicsImpl.dib(w.scene, img, { handle }));
+                return handle;
+            })
             .catch(() => 0);
     }
+
+    private updateCursor(): void {
+        if (this.loading) return;
+        document.body.style.cursor = this.cursorOverHyp ? "pointer" : this.currentCursor;
+    }
+
     // Мышь
     // LoadCursor(HANDLE HSpace, STRING Filename)
     // LoadCursor(STRING WindowName, STRING Filename)
@@ -358,16 +418,31 @@ export class Enviroment implements EnviromentFunctions {
         const scene = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace)?.scene;
         if (!scene) return;
         const cursor = req(dir.resolve(filename).toString());
-        scene.setCursor(cursor || "default");
+        this.currentCursor = cursor || "default";
+        this.updateCursor();
     }
     createObjectFromFile2D(dir: PathInfo, hspace: number, fileName: string, x: number, y: number, flags: number): number | Promise<number> {
-        const scene = this.scenes.get(hspace);
-        if (typeof scene === "undefined") return 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
 
         return readFile(dir.resolve(fileName), "vdr")
-            .then((vdr) => scene.insertVectorDrawing(x, y, flags, vdr))
+            .then((vdr) => {
+                const obj = insertVDR(wrapper, vdr);
+                if (!obj) return 0;
+
+                const mat = wrapper.matrix;
+                if (!mat) {
+                    return obj.move(x, y).handle;
+                }
+
+                const w = x * mat[2] + y * mat[5] + mat[8];
+                const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+                const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+                return obj.move(newX, newY).handle;
+            })
             .catch(() => 0);
     }
+
     createStream(dir: PathInfo, type: string, name: string, flags: string): number | Promise<number> {
         const t = type.toUpperCase();
 
@@ -414,23 +489,305 @@ export class Enviroment implements EnviromentFunctions {
             .catch(() => 0);
     }
 
-    setCapture(target: EventSubscriber, hspace: number, flags: number): void {
-        const scene = this.scenes.get(hspace);
-        if (typeof scene !== "undefined") (this.targetScene = scene).setCapture(target);
+    private handlePointer(w: SceneWrapper, evt: ScenePointerEvent): void {
+        // https://developer.mozilla.org/ru/docs/Web/API/MouseEvent/buttons#возвращаемые_значения
+        const lmb = evt.buttons & 1 ? 1 : 0;
+        const rmb = evt.buttons & 2 ? 2 : 0;
+        const wheel = evt.buttons & 4 ? 16 : 0;
+        const keys = lmb | rmb | wheel;
+        const { x: realX, y: realY } = evt;
+
+        let clickElem: SceneElement | null = evt.element;
+        while (clickElem) {
+            const par = clickElem.parent();
+            if (!par) break;
+            clickElem = par;
+        }
+
+        let subs: SuperMap<EventSubscriber, SceneElement | null>;
+        let type: Constant;
+
+        switch (evt.type) {
+            case "pointerdown": {
+                this.closePopups(w);
+                switch (evt.button) {
+                    // https://developer.mozilla.org/ru/docs/Web/API/MouseEvent/button#возвращаемые_значения
+                    case 0: //Левая кнопка
+                        this.handleClick(w.prj, clickElem?.meta, { x: evt.clickX, y: evt.clickY });
+                        subs = w.leftButtonDownSubs;
+                        type = Constant.WM_LBUTTONDOWN;
+                        break;
+                    case 1: //Колесико
+                        subs = w.middleButtonDownSubs;
+                        type = Constant.WM_MBUTTONDOWN;
+                        break;
+                    case 2: //Правая кнопка
+                        subs = w.rightButtonDownSubs;
+                        type = Constant.WM_RBUTTONDOWN;
+                        break;
+                    default:
+                        return;
+                }
+                break;
+            }
+            case "pointerup": {
+                switch (evt.button) {
+                    case 0:
+                        subs = w.leftButtonUpSubs;
+                        type = Constant.WM_LBUTTONUP;
+                        break;
+                    case 1:
+                        subs = w.middleButtonUpSubs;
+                        type = Constant.WM_MBUTTONUP;
+                        break;
+                    case 2:
+                        subs = w.rightButtonUpSubs;
+                        type = Constant.WM_RBUTTONUP;
+                        break;
+                    default:
+                        return;
+                }
+                break;
+            }
+            case "pointermove":
+                const overHyp = !!clickElem?.meta;
+                if (this.cursorOverHyp !== overHyp) {
+                    this.cursorOverHyp = overHyp;
+                    this.updateCursor();
+                }
+                subs = w.mouseMoveSubs;
+                type = Constant.WM_MOUSEMOVE;
+                break;
+        }
+
+        let x = realX;
+        let y = realY;
+        const mat = w.invMatrix;
+        if (mat) {
+            const w = realX * mat[2] + realY * mat[5] + mat[8];
+            x = (realX * mat[0] + realY * mat[3] + mat[6]) / w;
+            y = (realX * mat[1] + realY * mat[4] + mat[7]) / w;
+        }
+        const capt = this.captureTarget;
+
+        for (const [sub, set] of subs) {
+            if ((evt.target === capt?.scene && sub === capt.receiver) || set.has(clickElem) || set.has(null)) {
+                sub.receive(type, x, y, keys);
+            }
+        }
+    }
+
+    private handleKeyboard(w: SceneWrapper, evt: SceneKeyboardEvent): void {
+        let subs: Set<EventSubscriber>;
+        let type: Constant;
+
+        switch (evt.type) {
+            case "keydown":
+                subs = w.keyDownSubs;
+                type = Constant.WM_KEYDOWN;
+                break;
+            case "keyup":
+                subs = w.keyUpSubs;
+                type = Constant.WM_KEYUP;
+                break;
+            case "keychar":
+                subs = w.keyCharSubs;
+                type = WM_CHAR;
+                break;
+        }
+
+        subs.forEach((s) => s.receive(type, evt.key, evt.repeat, evt.scan));
+    }
+
+    private handleInput(w: SceneWrapper, evt: SceneInputEvent): void {
+        const subs = w.controlNotifySubs;
+        let type: Constant = Constant.WM_CONTROLNOTIFY;
+        let notifyCode: number;
+        const targetElem = evt.element;
+
+        switch (evt.type) {
+            case "input":
+                notifyCode = 768;
+                break;
+            case "focus":
+                notifyCode = 256;
+                break;
+            case "blur":
+                notifyCode = 512;
+                break;
+        }
+
+        for (const [sub, set] of subs) {
+            if (set.has(targetElem) || set.has(null)) {
+                sub.receive(type, targetElem.handle, 0, notifyCode);
+            }
+        }
+    }
+
+    setCapture(receiver: EventSubscriber, hspace: number, flags: number): void {
+        const scene = this.scenes.get(hspace)?.scene;
+        if (!scene) return;
+        this.captureTarget = { scene, receiver };
+        scene.setCapture();
     }
     subscribe(target: EventSubscriber, wnameOrHspace: string | number, obj2d: number, message: number, flags: number): void {
-        const wnd = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace)?.wnd : this.windows.get(wnameOrHspace);
-        wnd?.on(target, message, flags & 1 ? obj2d : 0);
+        const w = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace);
+        if (!w) return;
+
+        const requireObj = flags & 1;
+
+        const obj = w.objects.get(obj2d) ?? null;
+        switch (message) {
+            case Constant.WM_MOVE:
+                w.windowMoveSubs.add(target);
+                break;
+            case Constant.WM_SPACEDONE:
+                w.spaceDoneSubs.add(target);
+                break;
+            case Constant.WM_SIZE:
+                w.sizeSubs.add(target);
+                break;
+
+            case Constant.WM_CONTROLNOTIFY:
+                if (obj || obj2d === 0) w.controlNotifySubs.set(target, obj);
+                break;
+
+            case Constant.WM_MOUSEMOVE:
+                if (obj || !requireObj) w.mouseMoveSubs.set(target, requireObj ? obj : null);
+                break;
+            case Constant.WM_LBUTTONDOWN:
+                if (obj || !requireObj) w.leftButtonDownSubs.set(target, requireObj ? obj : null);
+                break;
+            case Constant.WM_LBUTTONUP:
+                if (obj || !requireObj) w.leftButtonUpSubs.set(target, requireObj ? obj : null);
+                break;
+            // case EventCode.WM_LBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_RBUTTONDOWN:
+                if (obj || !requireObj) w.rightButtonDownSubs.set(target, requireObj ? obj : null);
+                break;
+            case Constant.WM_RBUTTONUP:
+                if (obj || !requireObj) w.rightButtonUpSubs.set(target, requireObj ? obj : null);
+                break;
+            // case EventCode.WM_RBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_MBUTTONDOWN:
+                if (obj || !requireObj) w.middleButtonDownSubs.set(target, requireObj ? obj : null);
+                break;
+            case Constant.WM_MBUTTONUP:
+                if (obj || !requireObj) w.middleButtonUpSubs.set(target, requireObj ? obj : null);
+                break;
+            // case EventCode.WM_MBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_ALLMOUSEMESSAGE:
+                if (!obj && requireObj) break;
+                const t = requireObj ? obj : null;
+                w.mouseMoveSubs.set(target, t);
+                w.leftButtonDownSubs.set(target, t);
+                w.leftButtonUpSubs.set(target, t);
+                w.rightButtonDownSubs.set(target, t);
+                w.rightButtonUpSubs.set(target, t);
+                w.middleButtonDownSubs.set(target, t);
+                w.middleButtonUpSubs.set(target, t);
+                break;
+            case Constant.WM_KEYDOWN:
+                w.keyDownSubs.add(target);
+                break;
+            case Constant.WM_KEYUP:
+                w.keyUpSubs.add(target);
+                break;
+            case WM_CHAR:
+                w.keyCharSubs.add(target);
+                break;
+            case Constant.WM_ALLKEYMESSAGE:
+                w.keyDownSubs.add(target);
+                w.keyUpSubs.add(target);
+                w.keyCharSubs.add(target);
+                break;
+            default:
+                console.warn(`Подписка на ${Constant[message]} не реализована (имидж: ${(target as Schema).proto.name})`);
+                // this._unsub.add(Constant[code]);
+                // if (this._unsub.size > this._unsubS) {
+                //     this._unsubS = this._unsub.size;
+                //     console.warn(`Подписка на ${Constant[code]} не реализована (имидж: ${})`);
+                // }
+                break;
+        }
     }
     unsubscribe(target: EventSubscriber, wnameOrHspace: string | number, message: number): void {
-        const wnd = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace)?.wnd : this.windows.get(wnameOrHspace);
-        wnd?.off(target, message);
+        const w = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace);
+        if (!w) return;
+        switch (message) {
+            case Constant.WM_MOVE:
+                w.windowMoveSubs.delete(target);
+                break;
+            case Constant.WM_SPACEDONE:
+                w.spaceDoneSubs.delete(target);
+                break;
+            case Constant.WM_SIZE:
+                w.sizeSubs.delete(target);
+                break;
+
+            case Constant.WM_CONTROLNOTIFY:
+                w.controlNotifySubs.delete(target);
+                break;
+
+            case Constant.WM_MOUSEMOVE:
+                w.mouseMoveSubs.delete(target);
+                break;
+            case Constant.WM_LBUTTONDOWN:
+                w.leftButtonDownSubs.delete(target);
+                break;
+            case Constant.WM_LBUTTONUP:
+                w.leftButtonUpSubs.delete(target);
+                break;
+            // case EventCode.WM_LBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_RBUTTONDOWN:
+                w.rightButtonDownSubs.delete(target);
+                break;
+            case Constant.WM_RBUTTONUP:
+                w.rightButtonUpSubs.delete(target);
+                break;
+            // case EventCode.WM_RBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_MBUTTONDOWN:
+                w.middleButtonDownSubs.delete(target);
+                break;
+            case Constant.WM_MBUTTONUP:
+                w.middleButtonUpSubs.delete(target);
+                break;
+            // case EventCode.WM_MBUTTONDBLCLK:
+            //     break;
+            case Constant.WM_ALLMOUSEMESSAGE:
+                w.mouseMoveSubs.delete(target);
+                w.leftButtonDownSubs.delete(target);
+                w.leftButtonUpSubs.delete(target);
+                w.rightButtonDownSubs.delete(target);
+                w.rightButtonUpSubs.delete(target);
+                w.middleButtonDownSubs.delete(target);
+                w.middleButtonUpSubs.delete(target);
+                break;
+            case Constant.WM_KEYDOWN:
+                w.keyDownSubs.delete(target);
+                break;
+            case Constant.WM_KEYUP:
+                w.keyUpSubs.delete(target);
+                break;
+            case WM_CHAR:
+                w.keyCharSubs.delete(target);
+                break;
+            case Constant.WM_ALLKEYMESSAGE:
+                w.keyDownSubs.delete(target);
+                w.keyUpSubs.delete(target);
+                w.keyCharSubs.delete(target);
+                break;
+        }
     }
 
     private async loadProject(prjFile: PathInfo): Promise<void> {
         if (this.loading) return;
 
-        const c = document.body.style.cursor;
         document.body.style.cursor = "wait";
         try {
             const data = await Enviroment.loadProjectResources(prjFile, { id: this.nextSessionId(), lib: this.classes });
@@ -440,18 +797,12 @@ export class Enviroment implements EnviromentFunctions {
             console.error(e);
         } finally {
             this.loading = null;
-            document.body.style.cursor = c;
+            this.updateCursor();
         }
     }
 
-    private lastOpenPopup = "";
-    hyperCall(prj: Project, hyp: Hyperbase | null, point: Point2D): void {
-        if (this.lastOpenPopup) {
-            this.windows.get(this.lastOpenPopup)?.close();
-            this.lastOpenPopup = "";
-        }
+    private handleClick(prj: Project, hyp: Hyperbase | null | undefined, point: Point2D): void {
         if (this.loading || !hyp) return;
-
         switch (hyp.openMode ?? 0) {
             // Окно
             case 0: {
@@ -462,7 +813,11 @@ export class Enviroment implements EnviromentFunctions {
 
                 const wname = hyp.windowName || ((scheme.settings?.style ?? 0) & WindowStyle.SWF_POPUP ? "PopupWindow" : "MainWindow");
                 if (this.windows.has(wname)) return;
-                this.openWindow(prj, wname, { useVdrSettings: true }, scheme, { x: point.x, y: point.y, w: 0, h: 0 });
+
+                const params = parseEnviromentWindowSettings("WS_BYSPACE", scheme);
+                params.position = point;
+
+                this.createWindow(prj, wname, params);
                 break;
             }
             // Windows-приложение
@@ -492,118 +847,162 @@ export class Enviroment implements EnviromentFunctions {
         }
     }
 
-    private openWindow(prj: Project, wname: string, attribs: WindowAttribs, vdr?: VectorDrawing | null, rect?: WindowRect): number {
+    private createWindow(prj: Project, wname: string, params: EnviromentWindowSettings): number {
+        params.title = wname;
+        const w = this.createScene(prj, wname, params, (view, opts) => this.host.append(view, opts));
+        if (params.isPopup) {
+            this.openedPopups.add(w);
+        }
+        return w.handle;
+    }
+
+    private createWindowFrame(parent: SceneWrapper, prj: Project, wname: string, params: EnviromentWindowSettings): number {
+        return this.createScene(prj, wname, params, (view, opts) => new FrameController(view as HTMLDivElement, parent.scene, opts)).handle;
+    }
+
+    private createScene(prj: Project, wname: string, params: EnviromentWindowSettings, getWindow: WindowHost["append"]): SceneWrapper {
+        let scene: Scene;
+        let pens: Map<number, PenTool>;
+        let brushes: Map<number, BrushTool>;
+        let dibs: Map<number, ImageTool>;
+        let doubleDibs: Map<number, ImageTool>;
+        let fonts: Map<number, FontTool>;
+        let strings: Map<number, StringTool>;
+        let texts: Map<number, TextTool>;
+
+        let objects: Map<number, SceneElement>;
+
+        const { vdr } = params;
+
+        if (vdr) {
+            const p: Point2D = params.sceneOrg ?? vdr.origin;
+            scene = new graphicsImpl.scene({
+                layers: vdr.layers,
+                offsetX: p.x,
+                offsetY: p.y,
+            });
+
+            pens = createPenTools(scene, vdr.penTools);
+            dibs = createImageTools(scene, vdr.dibTools);
+            brushes = createBrushTools(scene, dibs, vdr.brushTools);
+            doubleDibs = createImageTools(scene, vdr.doubleDibTools);
+            fonts = createFontTools(scene, vdr.fontTools);
+            strings = createStringTools(scene, vdr.stringTools);
+            texts = createTextTools(scene, fonts, strings, vdr.textTools);
+
+            objects = createElements(scene, { pens, brushes, dibs, doubleDibs, texts }, vdr.elements);
+
+            if (vdr.elementOrder) {
+                scene.setElements(createElementOrder(vdr.elementOrder, objects));
+            }
+        } else {
+            scene = new graphicsImpl.scene();
+
+            pens = new Map();
+            brushes = new Map();
+            dibs = new Map();
+            doubleDibs = new Map();
+            fonts = new Map();
+            strings = new Map();
+            texts = new Map();
+
+            objects = new Map();
+        }
+
+        const wnd = getWindow(scene.view, params);
+
         const handle = HandleMap.getFreeHandle(this.scenes);
-        const args: WindowArgs = {
+
+        const m = vdr?.crdSystem?.matrix;
+        const wrapper: SceneWrapper = {
+            pens,
+            brushes,
+            objects,
+            dibs,
+            doubleDibs,
+            fonts,
+            strings,
+            texts,
+            scene,
+            wnd,
             handle,
             wname,
-            vdr,
-            attribs,
-            rect,
-            onClosed: () => this.removeWindow(wname),
+            prj,
+            title: wname,
+            scale: 1,
+            source: vdr?.source ?? null,
+            matrix: m ?? null,
+            invMatrix: m ? invertMatrix(m) : null,
+            sizeSubs: new Set(),
+            controlNotifySubs: new SuperMap(),
+            mouseMoveSubs: new SuperMap(),
+            leftButtonUpSubs: new SuperMap(),
+            leftButtonDownSubs: new SuperMap(),
+            rightButtonUpSubs: new SuperMap(),
+            rightButtonDownSubs: new SuperMap(),
+            middleButtonUpSubs: new SuperMap(),
+            middleButtonDownSubs: new SuperMap(),
+            keyDownSubs: new Set(),
+            keyUpSubs: new Set(),
+            keyCharSubs: new Set(),
+            spaceDoneSubs: new Set(),
+            windowMoveSubs: new Set(),
         };
-        const wnd = new SceneWindow<Project>(args, (view, opts) => {
-            if (opts.popup) this.lastOpenPopup = wname;
-            return this.host.window(view, opts);
-        });
 
-        this.windows.set(wname, wnd);
-        this.scenes.set(handle, wnd.scene);
-        wnd.projectID = prj;
-        wnd.scene.hyperHandler = prj;
-        return handle;
-    }
-
-    private openSubwindow(
-        parent: SceneWindow<Project>,
-        prj: Project,
-        wname: string,
-        attribs: WindowAttribs,
-        rect: WindowRect,
-        vdr?: VectorDrawing | null
-    ): number {
-        const handle = HandleMap.getFreeHandle(this.scenes);
-        const wnd = parent.subwindow({
-            handle,
-            wname,
-            vdr,
-            rect,
-            attribs,
-            onClosed: () => this.removeWindow(wname),
-        });
-
-        this.windows.set(wname, wnd);
-        this.scenes.set(handle, wnd.scene);
-        wnd.projectID = prj;
-        wnd.scene.hyperHandler = prj;
-        return handle;
-    }
-
-    private closeProjectWindows(prj: Project) {
-        for (const w of this.windows.values()) {
-            if (w.projectID === prj) w.close();
+        if (wnd.on) {
+            wnd.on("closed", () => this.removeWindow(wrapper, false));
         }
+
+        const bindPtr = this.handlePointer.bind(this, wrapper);
+        const bindKbd = this.handleKeyboard.bind(this, wrapper);
+        const bindInput = this.handleInput.bind(this, wrapper);
+        scene
+            .on("pointerdown", bindPtr) //преттиер ты достал не формачь это
+            .on("pointerup", bindPtr)
+            .on("pointermove", bindPtr)
+            .on("keydown", bindKbd)
+            .on("keyup", bindKbd)
+            .on("keychar", bindKbd)
+            .on("inputState", bindInput);
+
+        this.windows.set(wname, wrapper);
+        this.scenes.set(handle, wrapper);
+        return wrapper;
     }
 
-    private removeWindow(wname: string): void {
-        const wnd = this.windows.get(wname);
-        if (!wnd) return;
-
-        this.windows.delete(wname);
-        this.scenes.delete(wnd.sceneHandle);
-        if (wnd.scene === this.targetScene) {
-            this.targetScene?.releaseCapture();
-            this.targetScene = null;
+    private removeWindow(w: SceneWrapper, close: boolean): void {
+        this.windows.delete(w.wname);
+        this.scenes.delete(w.handle);
+        this.openedPopups.delete(w);
+        if (w.scene === this.captureTarget?.scene) {
+            this.captureTarget.scene.releaseCapture();
+            this.captureTarget = null;
         }
+        w.wnd.off && w.wnd.off("closed");
+        close && w.wnd.close && w.wnd.close();
+        w.spaceDoneSubs.forEach((h) => h.receive(Constant.WM_SPACEDONE));
     }
 
-    // private filterClosedWindows() {
-    //     const wnds = [...this.windows].filter((w) => !w[1].closed);
-    //     this.windows = new Map(wnds);
-    //     this.scenes = new Map(wnds.map((w) => [w[1].sceneHandle, w[1].scene]));
-    //     if (wnds.some((w) => w[1].scene === this.targetScene)) {
-    //         this.targetScene?.releaseCapture();
-    //         this.targetScene = null;
-    //     }
-    // }
-
-    private getObject(hspace: number, hobject: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objects.get(hobject) : undefined;
-    }
-    private getTPen(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.pens.get(htool) : undefined;
-    }
-    private getTBrush(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.brushes.get(htool) : undefined;
-    }
-    private getTDIB(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.dibs.get(htool) : undefined;
-    }
-    private getTDDoubleDIB(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.doubleDibs.get(htool) : undefined;
-    }
-    private getTText(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.texts.get(htool) : undefined;
-    }
-    private getTString(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.strings.get(htool) : undefined;
-    }
-    private getTFont(hspace: number, htool: number) {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.fonts.get(htool) : undefined;
+    private closeAllWindows(): void {
+        this.windows.forEach((w) => this.removeWindow(w, true));
     }
 
+    private closeProjectWindows(prj: Project): void {
+        this.windows.forEach((w) => {
+            if (w.prj === prj) this.removeWindow(w, true);
+        });
+    }
+
+    private closePopups(except: SceneWrapper): void {
+        this.openedPopups.forEach((w) => {
+            if (w !== except) this.removeWindow(w, true);
+        });
+    }
+
+    // Реализации функций.
     stratum_releaseCapture(): void {
-        if (this.targetScene === null) return;
-        this.targetScene.releaseCapture();
-        this.targetScene = null;
+        this.captureTarget?.scene.releaseCapture();
+        this.captureTarget = null;
     }
 
     //#region ФУНКЦИИ ПРОЧИЕ
@@ -639,7 +1038,7 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     stratum_shell(path: string, args: string, directory: string, flag: number): NumBool {
-        this.handlers.shell.forEach((c) => c(path, args, directory, flag));
+        this.handlers.shell.forEach((h) => h(path, args, directory, flag));
         return 1;
     }
 
@@ -658,20 +1057,22 @@ export class Enviroment implements EnviromentFunctions {
     stratum_setHyperJump2d(hspace: number, hobject: number, mode: number, ...args: string[]): NumBool {
         if (mode < -1 || mode > 4) return 0;
 
-        const scene = this.scenes.get(hspace);
-        if (typeof scene === "undefined") return 0;
-
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
         if (mode === -1) {
-            return scene.setHyper(hobject, null);
+            obj.meta = null;
+            return 1;
         }
-        return scene.setHyper(hobject, {
+        const hyp: Hyperbase = {
             openMode: mode,
             target: args[0],
             objectName: args[1],
             effect: args[2],
             windowName: args[3],
             params: args[4],
-        });
+        };
+        obj.meta = hyp;
+        return 1;
         // const path = args[0];
         // const objName = args[1];
         // const wname = args[3];
@@ -683,7 +1084,25 @@ export class Enviroment implements EnviromentFunctions {
         // return 1;
     }
     stratum_stdHyperJump(hspace: number, x: number, y: number, hobject: number /*, flags: number*/): void {
-        this.scenes.get(hspace)?.tryHyper(x, y, hobject);
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return;
+
+        const obj = wrapper.objects.get(hobject) ?? this.getObjAtPoint(wrapper, x, y, false);
+
+        let clickX = x;
+        let clickY = y;
+
+        const mat = wrapper.matrix;
+        if (mat) {
+            const w = x * mat[2] + y * mat[5] + mat[8];
+            clickX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+            clickY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        }
+
+        clickX -= wrapper.scene.offsetX();
+        clickY -= wrapper.scene.offsetY();
+
+        this.handleClick(wrapper.prj, obj?.meta, { x: clickX, y: clickY });
     }
 
     // Параметры экрана
@@ -744,65 +1163,70 @@ export class Enviroment implements EnviromentFunctions {
         return 1;
     }
     stratum_getClientHeight(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.clientHeight() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.clientHeight ? wnd.clientHeight() : 0;
     }
     stratum_getClientWidth(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.clientWidth() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.clientWidth ? wnd.clientWidth() : 0;
     }
     stratum_getWindowName(hspace: number): string {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.wnd.name : "";
+        return this.scenes.get(hspace)?.wname ?? "";
     }
     stratum_getWindowOrgX(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.originX() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.originX ? wnd.originX() : 0;
     }
     stratum_getWindowOrgY(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.originY() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.originY ? wnd.originY() : 0;
     }
     stratum_getWindowSpace(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.sceneHandle : 0;
+        return this.windows.get(wname)?.handle ?? 0;
     }
     stratum_getWindowWidth(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.width() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.width ? wnd.width() : 0;
     }
     stratum_getWindowHeight(wname: string): number {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.height() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        return wnd?.height ? wnd.height() : 0;
     }
     stratum_getWindowTitle(wname: string): string {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.title() : "";
+        return this.windows.get(wname)?.title ?? "";
     }
 
     stratum_setClientSize(wname: string, width: number, height: number): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.setClientSize(width, height) : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        if (wnd.setClientSize) wnd.setClientSize(width, height);
+        return 1;
     }
     stratum_setWindowSize(wname: string, width: number, height: number): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.setSize(width, height) : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        if (wnd.setSize) wnd.setSize(width, height);
+        return 1;
     }
     stratum_setWindowOrg(wname: string, orgX: number, orgY: number): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.setOrigin(orgX, orgY) : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        if (wnd.setOrigin) wnd.setOrigin(orgX, orgY);
+        return 1;
     }
     stratum_setWindowPos(wname: string, orgX: number, orgY: number, width: number, height: number): NumBool {
-        const wnd = this.windows.get(wname);
-        if (typeof wnd === "undefined") return 0;
-
-        wnd.setOrigin(orgX, orgY);
-        wnd.setSize(width, height);
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        if (wnd.setOrigin) wnd.setOrigin(orgX, orgY);
+        if (wnd.setSize) wnd.setSize(width, height);
         return 1;
     }
     stratum_setWindowTitle(wname: string, title: string): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.setTitle(title) : 0;
+        const w = this.windows.get(wname);
+        if (!w) return 0;
+        w.title = title;
+        if (w.wnd.setTitle) w.wnd.setTitle(title);
+        return 1;
     }
 
     stratum_getWindowProp(wname: string, prop: string): string {
@@ -814,32 +1238,52 @@ export class Enviroment implements EnviromentFunctions {
         return useProp ? src.name : "";
     }
     stratum_isWindowExist(wname: string): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? 1 : 0;
+        return this.windows.has(wname) ? 1 : 0;
     }
     stratum_bringWindowToTop(wname: string): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.toTop() : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        if (wnd.toTop) wnd.toTop();
+        return 1;
     }
     stratum_showWindow(wname: string, flag: number): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.setAttrib(flag) : 0;
+        const wnd = this.windows.get(wname)?.wnd;
+        if (!wnd) return 0;
+        switch (flag) {
+            case Constant.SW_HIDE:
+                if (wnd.setVisibility) wnd.setVisibility(false);
+                break;
+            case Constant.SW_SHOW:
+            case Constant.SW_NORMAL:
+                if (wnd.setVisibility) wnd.setVisibility(true);
+                break;
+        }
+        return 1;
     }
     stratum_closeWindow(wname: string): NumBool {
-        const wnd = this.windows.get(wname);
-        return typeof wnd !== "undefined" ? wnd.close() : 0;
+        const w = this.windows.get(wname);
+        if (!w) return 0;
+        this.removeWindow(w, true);
+        return 1;
     }
     stratum_setWindowTransparent(wname: string, level: number): NumBool;
     stratum_setWindowTransparent(hspace: number, level: number): NumBool;
     stratum_setWindowTransparent(wnameOrHspace: number | string, level: number): NumBool {
-        const wnd = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace)?.wnd : this.windows.get(wnameOrHspace);
-        return wnd?.setTransparent(level) ?? 0;
+        const wnd = (typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace))?.wnd;
+        if (!wnd) return 0;
+        if (wnd.setTransparent) wnd.setTransparent(level);
+        return 1;
     }
     stratum_setWindowTransparentColor(wname: string, cref: number): NumBool;
     stratum_setWindowTransparentColor(hspace: number, cref: number): NumBool;
     stratum_setWindowTransparentColor(wnameOrHspace: number | string, cref: number): NumBool {
-        const wnd = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace)?.wnd : this.windows.get(wnameOrHspace);
-        return wnd?.setTransparentColor(cref) ?? 0;
+        const wnd = (typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace))?.wnd;
+        if (!wnd) return 0;
+        const r = crefToR(cref);
+        const g = crefToG(cref);
+        const b = crefToB(cref);
+        if (wnd.setBackground) wnd.setBackground(r, g, b);
+        return 1;
     }
     private setWindowOwnerwarnShowed = false;
     stratum_setWindowOwner(hspace: number, hownerSpace: number): NumBool {
@@ -855,15 +1299,36 @@ export class Enviroment implements EnviromentFunctions {
     // Пространства
     //
     stratum_saveRectArea2d(hspace: number, filename: string, /*bits*/ _: number, x: number, y: number, width: number, height: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        if (!scene) return 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
-        const url = scene.toDataURL(x, y, width, height);
-        if (!url) return 0;
+        const svg = (w.scene as RendererSVG).root;
 
+        //get svg source.
+        const serializer = new XMLSerializer();
+        let source = serializer.serializeToString(svg);
+        //add name spaces.
+        if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+            source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        if (!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
+            source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+        }
+
+        //add xml declaration
+        source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+
+        //convert svg source to URI data scheme.
+        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+
+        // const url = w.toDataURL(x, y, width, height);
+        // if (!url) return 0;
+
+        const norm = filename.replace("\\", "/");
+        const realName = norm.substring(norm.lastIndexOf("/") + 1, norm.lastIndexOf("."));
         const element = document.createElement("a");
         element.setAttribute("href", url);
-        element.setAttribute("download", filename);
+        element.setAttribute("download", `${realName || "Screenshot"}.svg`);
         element.style.display = "none";
         document.body.appendChild(element);
         element.click();
@@ -871,36 +1336,38 @@ export class Enviroment implements EnviromentFunctions {
         return 1;
     }
     stratum_getSpaceOrg2dx(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.originX() : 0;
+        return this.scenes.get(hspace)?.scene.offsetX() ?? 0;
     }
     stratum_getSpaceOrg2dy(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.originY() : 0;
+        return this.scenes.get(hspace)?.scene.offsetY() ?? 0;
     }
     stratum_setSpaceOrg2d(hspace: number, x: number, y: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.setOrigin(x, y) : 0;
+        const scene = this.scenes.get(hspace)?.scene;
+        if (!scene) return 0;
+        scene.setOffset(x, y);
+        return 1;
     }
     stratum_getScaleSpace2d(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.scale() : 0;
+        return this.scenes.get(hspace)?.scale ?? 0;
     }
     stratum_setScaleSpace2d(hspace: number, ms: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.setScale(ms) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        w.scale = ms;
+        return 1;
     }
     // stratum_emptySpace2d(hspace: number): NumBool {
     //     const scene = this.scenes.get(hspace);
     //     return typeof scene !== "undefined" ? scene.clear() : 0;
     // }
     stratum_getBkBrush2d(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.brushHandle() : 0;
+        return this.scenes.get(hspace)?.scene.brush.tool()?.handle ?? 0;
     }
     stratum_setBkBrush2d(hspace: number, hBrush: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.setBrush(hBrush) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        w.scene.brush.setTool(w.brushes.get(hBrush) ?? null);
+        return 1;
     }
 
     private lockSpace2dWarnShowed = false;
@@ -915,24 +1382,24 @@ export class Enviroment implements EnviromentFunctions {
     // Инструменты
     //
     stratum_getToolRef2d(hspace: number, type: number, toolHandle: number): number {
-        const scene = this.scenes.get(hspace);
-        if (!scene) return 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
         switch (type) {
             case Constant.PEN2D:
-                return this.getTPen(hspace, toolHandle)?.subCount() ?? 0;
+                return w.pens.get(toolHandle)?.subCount() ?? 0;
             case Constant.BRUSH2D:
-                return this.getTBrush(hspace, toolHandle)?.subCount() ?? 0;
+                return w.brushes.get(toolHandle)?.subCount() ?? 0;
             case Constant.DIB2D:
-                return this.getTDIB(hspace, toolHandle)?.subCount() ?? 0;
+                return w.dibs.get(toolHandle)?.subCount() ?? 0;
             case Constant.DOUBLEDIB2D:
-                return this.getTDDoubleDIB(hspace, toolHandle)?.subCount() ?? 0;
+                return w.doubleDibs.get(toolHandle)?.subCount() ?? 0;
             case Constant.TEXT2D:
-                return this.getTText(hspace, toolHandle)?.subCount() ?? 0;
+                return w.texts.get(toolHandle)?.subCount() ?? 0;
             case Constant.STRING2D:
-                return this.getTString(hspace, toolHandle)?.subCount() ?? 0;
+                return w.strings.get(toolHandle)?.subCount() ?? 0;
             case Constant.FONT2D:
-                return this.getTFont(hspace, toolHandle)?.subCount() ?? 0;
+                return w.fonts.get(toolHandle)?.subCount() ?? 0;
             case Constant.SPACE3D:
                 throw Error("Не реализовано");
         }
@@ -940,24 +1407,36 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     stratum_deleteTool2d(hspace: number, type: number, toolHandle: number): number {
-        const scene = this.scenes.get(hspace);
-        if (!scene) return 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
         switch (type) {
             case Constant.PEN2D:
-                return scene.pens.delete(toolHandle) ? 1 : 0;
-            case Constant.BRUSH2D:
-                return scene.brushes.delete(toolHandle) ? 1 : 0;
+                return w.pens.delete(toolHandle) ? 1 : 0;
+            case Constant.BRUSH2D: {
+                const b = w.brushes.get(toolHandle);
+                if (!b) return 0;
+                b.image.forceUnsub();
+                w.brushes.delete(toolHandle);
+                return 1;
+            }
             case Constant.DIB2D:
-                return scene.dibs.delete(toolHandle) ? 1 : 0;
+                return w.dibs.delete(toolHandle) ? 1 : 0;
             case Constant.DOUBLEDIB2D:
-                return scene.doubleDibs.delete(toolHandle) ? 1 : 0;
+                return w.doubleDibs.delete(toolHandle) ? 1 : 0;
             case Constant.TEXT2D:
-                return scene.texts.delete(toolHandle) ? 1 : 0;
+                const t = w.texts.get(toolHandle);
+                if (!t) return 0;
+                t.parts.forEach((t) => {
+                    t.font.forceUnsub();
+                    t.str.forceUnsub();
+                });
+                w.texts.delete(toolHandle);
+                return 1;
             case Constant.STRING2D:
-                return scene.strings.delete(toolHandle) ? 1 : 0;
+                return w.strings.delete(toolHandle) ? 1 : 0;
             case Constant.FONT2D:
-                return scene.fonts.delete(toolHandle) ? 1 : 0;
+                return w.fonts.delete(toolHandle) ? 1 : 0;
             case Constant.SPACE3D:
                 throw Error("Не реализовано");
         }
@@ -967,254 +1446,405 @@ export class Enviroment implements EnviromentFunctions {
     // Инструмент Карандаш
     //
     stratum_createPen2d(hspace: number, style: number, width: number, color: number, rop2: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createPenTool(style, width, color, rop2) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const handle = HandleMap.getFreeHandle(w.pens);
+        w.pens.set(handle, new graphicsImpl.pen(w.scene, { handle, color, rop: rop2, style, width }));
+        return handle;
     }
 
     stratum_getPenColor2d(hspace: number, hpen: number): number {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.color() : 0;
+        return this.scenes.get(hspace)?.pens.get(hpen)?.color() ?? 0;
     }
     stratum_getPenRop2d(hspace: number, hpen: number): number {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.rop() : 0;
+        return this.scenes.get(hspace)?.pens.get(hpen)?.rop() ?? 0;
     }
     stratum_getPenStyle2d(hspace: number, hpen: number): number {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.style() : 0;
+        return this.scenes.get(hspace)?.pens.get(hpen)?.style() ?? 0;
     }
     stratum_getPenWidth2d(hspace: number, hpen: number): number {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.width() : 0;
+        return this.scenes.get(hspace)?.pens.get(hpen)?.width() ?? 0;
     }
 
     stratum_setPenColor2d(hspace: number, hpen: number, color: number): NumBool {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.setColor(color) : 0;
+        const p = this.scenes.get(hspace)?.pens.get(hpen);
+        if (!p) return 0;
+        p.setColor(color);
+        return 1;
     }
     stratum_setPenRop2d(hspace: number, hpen: number, rop: number): NumBool {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.setRop(rop) : 0;
+        const p = this.scenes.get(hspace)?.pens.get(hpen);
+        if (!p) return 0;
+        p.setRop(rop);
+        return 1;
     }
     stratum_setPenStyle2d(hspace: number, hpen: number, style: number): NumBool {
-        const o = this.getTPen(hspace, hpen);
-        return typeof o !== "undefined" ? o.setStyle(style) : 0;
+        const p = this.scenes.get(hspace)?.pens.get(hpen);
+        if (!p) return 0;
+        p.setStyle(style);
+        return 1;
     }
     stratum_setPenWidth2d(hspace: number, hpen: number, width: number): NumBool {
-        const p = this.getTPen(hspace, hpen);
-        return typeof p !== "undefined" ? p.setWidth(width) : 0;
+        const p = this.scenes.get(hspace)?.pens.get(hpen);
+        if (!p) return 0;
+        p.setWidth(width);
+        return 1;
     }
 
     // Инструмент Кисть
     //
     stratum_createBrush2d(hspace: number, style: number, hatch: number, color: number, hdib: number, type: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createBrushTool(style, hatch, color, hdib, type) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const handle = HandleMap.getFreeHandle(w.brushes);
+
+        const args: BrushToolArgs = {
+            handle,
+            color,
+            hatch,
+            style,
+            rop: type,
+            image: w.dibs.get(hdib),
+        };
+
+        w.brushes.set(handle, new graphicsImpl.brush(w.scene, args));
+        return handle;
     }
 
     stratum_getBrushColor2d(hspace: number, hbrush: number): number {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.color() : 0;
+        return this.scenes.get(hspace)?.brushes.get(hbrush)?.color() ?? 0;
     }
     stratum_getBrushRop2d(hspace: number, hbrush: number): number {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.rop() : 0;
+        return this.scenes.get(hspace)?.brushes.get(hbrush)?.rop() ?? 0;
     }
     stratum_getBrushStyle2d(hspace: number, hbrush: number): number {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.style() : 0;
+        return this.scenes.get(hspace)?.brushes.get(hbrush)?.style() ?? 0;
     }
     stratum_getBrushHatch2d(hspace: number, hbrush: number): number {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.hatch() : 0;
+        return this.scenes.get(hspace)?.brushes.get(hbrush)?.hatch() ?? 0;
     }
     stratum_getBrushDib2d(hspace: number, hbrush: number): number {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.dibHandle() : 0;
+        return this.scenes.get(hspace)?.brushes.get(hbrush)?.image.tool()?.handle ?? 0;
     }
 
     stratum_setBrushColor2d(hspace: number, hbrush: number, color: number): NumBool {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.setColor(color) : 0;
+        const b = this.scenes.get(hspace)?.brushes.get(hbrush);
+        if (!b) return 0;
+        b.setColor(color);
+        return 1;
     }
     stratum_setBrushRop2d(hspace: number, hbrush: number, rop: number): NumBool {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.setRop(rop) : 0;
+        const b = this.scenes.get(hspace)?.brushes.get(hbrush);
+        if (!b) return 0;
+        b.setRop(rop);
+        return 1;
     }
     stratum_setBrushStyle2d(hspace: number, hbrush: number, style: number): NumBool {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.setStyle(style) : 0;
+        const b = this.scenes.get(hspace)?.brushes.get(hbrush);
+        if (!b) return 0;
+        b.setStyle(style);
+        return 1;
     }
     stratum_setBrushHatch2d(hspace: number, hbrush: number, hatch: number): NumBool {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.setHatch(hatch) : 0;
+        const b = this.scenes.get(hspace)?.brushes.get(hbrush);
+        if (!b) return 0;
+        b.setHatch(hatch);
+        return 1;
     }
     stratum_setBrushDib2d(hspace: number, hbrush: number, hdib: number): NumBool {
-        const b = this.getTBrush(hspace, hbrush);
-        return typeof b !== "undefined" ? b.setDIB(hdib) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const b = w.brushes.get(hbrush);
+        if (!b) return 0;
+        b.image.setTool(w.dibs.get(hdib) ?? null);
+        return 1;
+    }
+
+    private createFont(hspace: number, name: string, height: number, style: number): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const handle = HandleMap.getFreeHandle(w.fonts);
+        const args: FontToolArgs = { handle, name, style };
+        w.fonts.set(handle, new graphicsImpl.font(w.scene, height, args));
+        return handle;
     }
 
     // Инструмент Шрифт
     //
     stratum_createFont2D(hspace: number, fontName: string, height: number, flags: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createFontTool(fontName, height, flags) : 0;
+        return this.createFont(hspace, fontName, height, flags);
     }
-    //FIXME: эта функия работает иначе: см. доки.
+    private static readonly pxToPt = 0.752812499999996;
+    private static readonly ptToPx = 1.3283520132835271;
     stratum_createFont2Dpt(hspace: number, fontName: string, size: number, flags: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createFontTool(fontName, size, flags) : 0;
+        return this.createFont(hspace, fontName, size * Enviroment.ptToPx, flags);
     }
 
     stratum_getFontName2d(hspace: number, hfont: number): string {
-        const f = this.getTFont(hspace, hfont);
-        return typeof f !== "undefined" ? f.name() : "";
+        return this.scenes.get(hspace)?.fonts.get(hfont)?.name() ?? "";
     }
     stratum_getFontSize2d(hspace: number, hfont: number): number {
-        const f = this.getTFont(hspace, hfont);
-        // FIXME: возвращает 0 в некоторых случаях.
-        return typeof f !== "undefined" ? f.size() : 0;
+        return (this.scenes.get(hspace)?.fonts.get(hfont)?.size() ?? 0) * Enviroment.pxToPt;
     }
     stratum_getFontStyle2d(hspace: number, hfont: number): number {
-        const f = this.getTFont(hspace, hfont);
-        return typeof f !== "undefined" ? f.style() : 0;
+        return this.scenes.get(hspace)?.fonts.get(hfont)?.style() ?? 0;
     }
 
     stratum_setFontName2d(hspace: number, hfont: number, fontName: string): NumBool {
-        const f = this.getTFont(hspace, hfont);
-        return typeof f !== "undefined" ? f.setName(fontName) : 0;
+        const f = this.scenes.get(hspace)?.fonts.get(hfont);
+        if (!f) return 0;
+        f.setName(fontName);
+        return 1;
     }
     stratum_setFontSize2d(hspace: number, hfont: number, size: number): NumBool {
-        const f = this.getTFont(hspace, hfont);
-        return typeof f !== "undefined" ? f.setSize(size) : 0;
+        const f = this.scenes.get(hspace)?.fonts.get(hfont);
+        if (!f) return 0;
+        f.setSize(size * Enviroment.ptToPx);
+        return 1;
     }
     stratum_setFontStyle2d(hspace: number, hfont: number, flags: number): NumBool {
-        const f = this.getTFont(hspace, hfont);
-        return typeof f !== "undefined" ? f.setStyle(flags) : 0;
+        const f = this.scenes.get(hspace)?.fonts.get(hfont);
+        if (!f) return 0;
+        f.setStyle(flags);
+        return 1;
     }
 
     // Инструмент Строка
     //
     stratum_createString2D(hspace: number, value: string): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createStringTool(value) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const handle = HandleMap.getFreeHandle(w.strings);
+        const args: StringToolArgs = { handle };
+        w.strings.set(handle, new graphicsImpl.str(w.scene, value, args));
+        return handle;
     }
     stratum_getstring2d(hspace: number, hstring: number): string {
-        const s = this.getTString(hspace, hstring);
-        return typeof s !== "undefined" ? s.text() : "";
+        return this.scenes.get(hspace)?.strings.get(hstring)?.text() ?? "";
     }
     stratum_setString2d(hspace: number, hstring: number, value: string): NumBool {
-        const s = this.getTString(hspace, hstring);
-        return typeof s !== "undefined" ? s.setText(value) : 0;
+        const s = this.scenes.get(hspace)?.strings.get(hstring);
+        if (!s) return 0;
+        s.setText(value);
+        return 1;
     }
 
     // Инструмент Текст
     //
     stratum_createText2D(hspace: number, hfont: number, hstring: number, fgColor: number, bgColor: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createTextTool(hfont, hstring, fgColor, bgColor) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const font = w.fonts.get(hfont);
+        if (!font) return 0;
+        const str = w.strings.get(hstring);
+        if (!str) return 0;
+
+        const part: TextToolPartData = {
+            fgColor,
+            bgColor,
+            font,
+            str,
+        };
+
+        const handle = HandleMap.getFreeHandle(w.texts);
+        const args: TextToolArgs = { handle };
+        w.texts.set(handle, new graphicsImpl.ttool(w.scene, [part], args));
+        return handle;
     }
     stratum_createRasterText2D(hspace: number, htext: number, x: number, y: number, angle: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createText(x, y, angle, htext) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const tool = w.texts.get(htext);
+        if (!tool) return 0;
+
+        let realX = x;
+        let realY = y;
+
+        const mat = w.matrix;
+        if (mat) {
+            const w = x * mat[2] + y * mat[5] + mat[8];
+            realX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+            realY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        }
+
+        const handle = HandleMap.getFreeHandle(w.objects);
+        const text = new graphicsImpl.text(w.scene, tool, { handle, x: realX, y: realY, angle });
+        w.objects.set(handle, text);
+        w.scene.setElements([...w.scene.elements(), text]);
+        return handle;
     }
 
-    stratum_getTextObject2d(hspace: number, hojbect: number): number {
-        const obj = this.getObject(hspace, hojbect);
-        return typeof obj !== "undefined" ? obj.textToolHandle() : 0;
+    stratum_getTextObject2d(hspace: number, hobject: number): number {
+        const text = this.scenes.get(hspace)?.objects.get(hobject);
+        return text?.type === "text" ? text.tool.tool()?.handle ?? 0 : 0;
     }
     stratum_getTextCount2d(hspace: number, htext: number): number {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.textCount() : 0;
+        return this.scenes.get(hspace)?.texts.get(htext)?.parts.length ?? 0;
     }
 
     stratum_getTextFont2d(hspace: number, htext: number, index: number = 0): number {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.fontHandle(index) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        return parts[index].font.tool().handle;
     }
     stratum_getTextString2d(hspace: number, htext: number, index: number = 0): number {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.stringHandle(index) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        return parts[index].str.tool().handle;
     }
     stratum_getTextFgColor2d(hspace: number, htext: number, index: number = 0): number {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.fgColor(index) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        return parts[index].fgColor();
     }
     stratum_getTextBkColor2d(hspace: number, htext: number, index: number = 0): number {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.bgColor(index) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        return parts[index].bgColor();
     }
 
     stratum_setText2D(hspace: number, htext: number, /*          */ hfont: number, hstring: number, fgColor: number, bgColor: number): NumBool;
     stratum_setText2D(hspace: number, htext: number, index: number, hfont: number, hstring: number, fgColor: number, bgColor: number): NumBool;
     stratum_setText2D(hspace: number, htext: number, a1: number, a2: number, a3: number, a4: number, a5?: number): NumBool {
-        const t = this.getTText(hspace, htext);
-        if (typeof t === "undefined") return 0;
-
         const index = typeof a5 !== "undefined" ? a1 : 0;
         const hfont = typeof a5 !== "undefined" ? a2 : a1;
         const hstring = typeof a5 !== "undefined" ? a3 : a2;
         const fgColor = typeof a5 !== "undefined" ? a4 : a3;
         const bgColor = typeof a5 !== "undefined" ? a5 : a4;
 
-        return t.setValues(index, hfont, hstring, fgColor, bgColor);
+        if (index < 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const parts = w.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+
+        const p = parts[index].setFgColor(fgColor).setBgColor(bgColor);
+
+        const font = w.fonts.get(hfont);
+        if (font) p.font.setTool(font);
+
+        const str = w.strings.get(hstring);
+        if (str) p.str.setTool(str);
+
+        return 1;
     }
 
     stratum_setTextFgColor2d(hspace: number, htext: number, index: number, fgColor: number): NumBool {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.setFgColor(index, fgColor) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        parts[index].setFgColor(fgColor);
+        return 1;
     }
     stratum_setTextBkColor2d(hspace: number, htext: number, index: number, bgColor: number): NumBool {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.setBgColor(index, bgColor) : 0;
+        if (index < 0) return 0;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+        parts[index].setBgColor(bgColor);
+        return 1;
     }
     stratum_setTextFont2d(hspace: number, htext: number, index: number, hfont: number): NumBool {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.setFont(index, hfont) : 0;
+        if (index < 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const font = w.fonts.get(hfont);
+        if (!font) return 0;
+
+        const parts = w.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+
+        parts[index].font.setTool(font);
+        return 1;
     }
     stratum_setTextString2d(hspace: number, htext: number, index: number, hstring: number): NumBool {
-        const t = this.getTText(hspace, htext);
-        return typeof t !== "undefined" ? t.setString(index, hstring) : 0;
+        if (index < 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const str = w.strings.get(hstring);
+        if (!str) return 0;
+
+        const parts = w.texts.get(htext)?.parts;
+        if (!parts || index > parts.length - 1) return 0;
+
+        parts[index].str.setTool(str);
+        return 1;
     }
 
     // Инструмент Битовая карта
     //
 
     stratum_getDibPixel2D(hspace: number, hdib: number, x: number, y: number): number {
-        const d = this.getTDIB(hspace, hdib);
-        return typeof d !== "undefined" ? d.getPixel(x, y) : 0;
+        return this.scenes.get(hspace)?.dibs.get(hdib)?.pixel(x, y) ?? 0;
     }
     stratum_setDibPixel2D(hspace: number, hdib: number, x: number, y: number, colorref: number): number {
-        const d = this.getTDIB(hspace, hdib);
-        return typeof d !== "undefined" ? d.setPixel(x, y, colorref) : 0;
+        const d = this.scenes.get(hspace)?.dibs.get(hdib);
+        if (!d) return 0;
+        d.setPixel(x, y, colorref);
+        return 1;
     }
 
     // Двойная битовая карта
     //
 
+    private createBitmap(hspace: number, hdib: number, x: number, y: number, isTransparent: boolean): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const tool = (isTransparent ? w.doubleDibs : w.dibs).get(hdib);
+        if (!tool) return 0;
+
+        let realX = x;
+        let realY = y;
+
+        const mat = w.matrix;
+        if (mat) {
+            const w = x * mat[2] + y * mat[5] + mat[8];
+            realX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+            realY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        }
+
+        const handle = HandleMap.getFreeHandle(w.objects);
+        const bmp = new graphicsImpl.bitmap(w.scene, isTransparent, tool, { handle, x: realX, y: realY });
+        w.objects.set(handle, bmp);
+        w.scene.setElements([...w.scene.elements(), bmp]);
+        return handle;
+    }
+
     // Объект Битмап
     //
     stratum_createBitmap2d(hspace: number, hdib: number, x: number, y: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createBitmap(x, y, hdib, false) : 0;
+        return this.createBitmap(hspace, hdib, x, y, false);
     }
     stratum_createDoubleBitmap2D(hspace: number, hdib: number, x: number, y: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createBitmap(x, y, hdib, true) : 0;
+        return this.createBitmap(hspace, hdib, x, y, true);
     }
 
     stratum_setBitmapSrcRect2d(hspace: number, hobject: number, x: number, y: number, width: number, height: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setBitmapRect(x, y, width, height) : 0;
+        const bmp = this.scenes.get(hspace)?.objects.get(hobject);
+        if (bmp?.type !== "image") return 0;
+        bmp.setCropArea({ x, y, w: width, h: height });
+        return 1;
     }
 
     stratum_getDibObject2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.dibHandle() : 0;
+        const bmp = this.scenes.get(hspace)?.objects.get(hobject);
+        return bmp?.type === "image" && !bmp.isTransparent ? bmp.image.tool().handle : 0;
     }
     stratum_getDDibObject2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.doubleDIBHandle() : 0;
+        const bmp = this.scenes.get(hspace)?.objects.get(hobject);
+        return bmp?.type === "image" && bmp.isTransparent ? bmp.image.tool().handle : 0;
     }
 
     stratum_rgbEx(r: number, g: number, b: number, type: number): number {
@@ -1236,218 +1866,621 @@ export class Enviroment implements EnviromentFunctions {
     // Функции для работы с графическими объектами
     //
     stratum_copyToClipboard2d(hspace: number, hobject: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.copy(hobject) : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        this.copied = obj;
+        return 1;
     }
     stratum_pasteFromClipboard2d(hspace: number, x: number, y: number, flags: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.paste(x, y, flags) : 0;
+        if (!this.copied) return 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        const obj = copyElement(wrapper, this.copied);
+
+        const mat = wrapper.matrix;
+        if (!mat) {
+            return obj.move(x, y).handle;
+        }
+
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+        const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        return obj.move(newX, newY).handle;
     }
     stratum_getNextObject2d(hspace: number, hobject: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.next(hobject) : 0;
-    }
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
 
+        if (hobject === 0) {
+            const next = w.objects.values().next();
+            return next.done ? 0 : next.value.handle;
+        }
+
+        let found = false;
+        for (const [nextH] of w.objects) {
+            if (found) return nextH;
+            if (nextH === hobject) found = true;
+        }
+        return 0;
+    }
     stratum_deleteObject2d(hspace: number, hobject: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.deleteObject(hobject) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj) return 0;
+
+        const p = obj.parent();
+        if (p) {
+            p.setChildren(p.children().filter((o) => o !== obj));
+        }
+        const set = new WeakSet([obj]);
+        switch (obj.type) {
+            case "group":
+                deleteGroupElements(obj.children() as SceneElement[], set);
+                break;
+            case "line":
+                obj.pen.forceUnsub();
+                obj.brush.forceUnsub();
+                break;
+            case "image":
+                obj.image.forceUnsub();
+                break;
+            case "text":
+                obj.tool.forceUnsub();
+                break;
+            case "input":
+                obj.font.forceUnsub();
+                break;
+            default:
+                const never: never = obj;
+                throw Error(`Неизвестный тип ${never["type"]}`);
+        }
+        w.objects = new Map([...w.objects].filter((o) => !set.has(o[1])));
+        w.scene.setElements(w.scene.elements().filter((e) => !set.has(e)));
+        return 1;
     }
 
     stratum_getObjectName2d(hspace: number, hobject: number): string {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objectName(hobject) : "";
+        return this.scenes.get(hspace)?.objects.get(hobject)?.name ?? "";
     }
     stratum_setObjectName2d(hspace: number, hobject: number, name: string): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.setObjectName(hobject, name) : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        obj.name = name;
+        return 1;
     }
     stratum_getObject2dByName(hspace: number, hgroup: number, name: string): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.getObject2dByName(hgroup, name) : 0;
+        if (name.length === 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        if (!hgroup) {
+            for (const [handle, obj] of w.objects) if (obj.name === name) return handle;
+            return 0;
+        }
+
+        const group = w.objects.get(hgroup);
+        if (group?.type !== "group") return 0;
+        return searchInGroup(name, group.children() as readonly SceneElement[])?.handle ?? 0;
     }
 
     stratum_getObjectType2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.type : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+
+        switch (obj.type) {
+            case "group":
+                return Constant.OTGROUP2D;
+            case "line":
+                return Constant.OTLINE_2D;
+            case "image":
+                return obj.isTransparent ? Constant.OTDOUBLEBITMAP_2D : Constant.OTBITMAP_2D;
+            case "text":
+                return Constant.OTTEXT_2D;
+            case "input":
+                return 26; //Я хз, вроде бы проверял в стратуме - возвращает такое число.
+        }
     }
     stratum_setObjectOrg2d(hspace: number, hobject: number, x: number, y: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setOrigin(x, y) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+        const obj = wrapper.objects.get(hobject);
+        if (!obj) return 0;
+
+        const mat = wrapper.matrix;
+        if (!mat) {
+            obj.move(x, y);
+            return 1;
+        }
+
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+        const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        obj.move(newX, newY);
+        return 1;
     }
     stratum_getObjectOrg2dx(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.originX() : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+        const obj = wrapper.objects.get(hobject);
+        if (!obj) return 0;
+
+        const mat = wrapper.invMatrix;
+        if (!mat) return obj.x();
+
+        const x = obj.x();
+        const y = obj.y();
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        return (x * mat[0] + y * mat[3] + mat[6]) / w;
     }
     stratum_getObjectOrg2dy(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.originY() : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+        const obj = wrapper.objects.get(hobject);
+        if (!obj) return 0;
+
+        const mat = wrapper.invMatrix;
+        if (!mat) return obj.y();
+
+        const x = obj.x();
+        const y = obj.y();
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        return (x * mat[1] + y * mat[4] + mat[7]) / w;
     }
 
     stratum_setObjectSize2d(hspace: number, hobject: number, sizeX: number, sizeY: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setSize(sizeX, sizeY) : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        obj.size(sizeX, sizeY);
+        return 1;
     }
     stratum_getObjectWidth2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.width() : 0;
+        return this.scenes.get(hspace)?.objects.get(hobject)?.width() ?? 0;
     }
     stratum_getObjectHeight2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.height() : 0;
-    }
-    stratum_getActualHeight2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.actualHeight() : 0;
+        return this.scenes.get(hspace)?.objects.get(hobject)?.height() ?? 0;
     }
     stratum_getActualWidth2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.actualWidth() : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        switch (obj.type) {
+            case "group":
+            case "line":
+            case "input":
+                return obj.width();
+            case "image":
+                return obj.image.tool().width();
+            case "text":
+                return obj.actualWidth();
+        }
+    }
+    stratum_getActualHeight2d(hspace: number, hobject: number): number {
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        switch (obj.type) {
+            case "group":
+            case "line":
+            case "input":
+                return obj.height();
+            case "image":
+                return obj.image.tool().height();
+            case "text":
+                return obj.actualHeight();
+        }
     }
 
     stratum_getObjectAngle2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.angle() : 0;
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        switch (obj.type) {
+            case "group":
+            case "line":
+            case "input":
+            case "image":
+                return 0;
+            case "text":
+                return obj.angle();
+        }
     }
     stratum_rotateObject2d(hspace: number, hobject: number, centerX: number, centerY: number, angle: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.rotate(centerX, centerY, angle) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+        const obj = wrapper.objects.get(hobject);
+        if (!obj) return 0;
+
+        const mat = wrapper.matrix;
+        if (!mat) {
+            obj.rotate(centerX, centerY, angle);
+            return 1;
+        }
+
+        const w = centerX * mat[2] + centerY * mat[5] + mat[8];
+        const newX = (centerX * mat[0] + centerY * mat[3] + mat[6]) / w;
+        const newY = (centerX * mat[1] + centerY * mat[4] + mat[7]) / w;
+        obj.rotate(newX, newY, angle);
+        return 1;
+    }
+
+    private setShow(hspace: number, hobject: number, visible: boolean) {
+        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        if (!obj) return 0;
+        switch (obj.type) {
+            case "group":
+                switchGroupElementsVisible(obj.children() as readonly SceneElement[], visible);
+                break;
+            default:
+                obj.visib.setVisible(visible);
+        }
+        return 1;
     }
 
     stratum_setShowObject2d(hspace: number, hobject: number, visible: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setVisibility(visible !== 0) : 0;
+        return this.setShow(hspace, hobject, visible !== 0);
     }
     stratum_showObject2d(hspace: number, hobject: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setVisibility(true) : 0;
+        return this.setShow(hspace, hobject, true);
     }
     stratum_hideObject2d(hspace: number, hobject: number): NumBool {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.setVisibility(false) : 0;
+        return this.setShow(hspace, hobject, false);
+    }
+
+    private getObjAtPoint(wrapper: SceneWrapper, x: number, y: number, savePrimary: boolean): SceneElement | null {
+        let newX = x;
+        let newY = y;
+        const mat = wrapper.matrix;
+        if (mat) {
+            const w = x * mat[2] + y * mat[5] + mat[8];
+            newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+            newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        }
+
+        const obj = wrapper.scene.elementAtPoint(newX, newY);
+        if (savePrimary) {
+            if (!obj || obj.unselectable) {
+                this.lastPrimary = 0;
+                return null;
+            }
+            this.lastPrimary = obj.handle;
+        }
+        if (!obj) return null;
+
+        let res: SceneElement = obj;
+        while (res) {
+            const par = res.parent();
+            if (!par) break;
+            res = par;
+        }
+        return res;
     }
 
     stratum_getObjectFromPoint2d(hspace: number, x: number, y: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.getObjectFromPoint2d(x, y, true) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        return this.getObjAtPoint(wrapper, x, y, true)?.handle ?? 0;
     }
     stratum_getLastPrimary2d(): number {
-        return Scene.lastPrimary();
+        return this.lastPrimary;
     }
 
     // Функции для управления Z-порядком графических объектов
     //
     stratum_getBottomObject2d(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.bottomObjectHandle() : 0;
-    }
-    stratum_getUpperObject2d(hspace: number, hobject: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.upperObjectHandle(hobject) : 0;
-    }
-    stratum_getObjectFromZOrder2d(hspace: number, zOrder: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objectFromZOrder(zOrder) : 0;
-    }
-    stratum_getLowerObject2d(hspace: number, hobject: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.lowerObjectHandle(hobject) : 0;
+        const scene = this.scenes.get(hspace)?.scene;
+        if (!scene) return 0;
+        const e = scene.elements();
+        return e.length > 0 ? e[0].handle : 0;
     }
     stratum_getTopObject2d(hspace: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.topObjectHandle() : 0;
+        const scene = this.scenes.get(hspace)?.scene;
+        if (!scene) return 0;
+        const e = scene.elements();
+        return e.length > 0 ? e[e.length - 1].handle : 0;
+    }
+    stratum_getLowerObject2d(hspace: number, hobject: number): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        const e = w.scene.elements();
+        const idx = e.indexOf(obj);
+        return idx < 1 ? 0 : e[idx - 1].handle;
+    }
+    stratum_getUpperObject2d(hspace: number, hobject: number): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        const e = w.scene.elements();
+        const idx = e.indexOf(obj);
+        return idx > -1 && idx < e.length - 1 ? e[idx + 1].handle : 0;
+    }
+    stratum_getObjectFromZOrder2d(hspace: number, zOrder: number): number {
+        const realZ = zOrder - 1;
+        if (realZ < 0) return 0;
+        const scene = this.scenes.get(hspace)?.scene;
+        if (!scene) return 0;
+        const e = scene.elements();
+        return realZ < e.length ? e[realZ].handle : 0;
     }
     stratum_getZOrder2d(hspace: number, hobject: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objectZOrder(hobject) : 0;
-    }
-    stratum_objectToBottom2d(hspace: number, hobject: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objectToBottom(hobject) : 0;
-    }
-    stratum_objectToTop2d(hspace: number, hobject: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.objectToTop(hobject) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        const e = w.scene.elements();
+        const idx = e.indexOf(obj);
+        return idx < 0 ? 0 : idx + 1;
     }
     stratum_setZOrder2d(hspace: number, hobject: number, zOrder: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.setObjectZOrder(hobject, zOrder) : 0;
+        const realZ = zOrder - 1;
+        if (realZ < 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        const e = w.scene.elements();
+
+        const res: PrimaryElement[] = [];
+        for (let i = 0; i < e.length; ++i) {
+            if (i === realZ) res.push(obj);
+            const cur = e[i];
+            if (cur !== obj) res.push(cur);
+        }
+        if (realZ >= e.length) res.push(obj);
+        w.scene.setElements(res);
+        return 1;
     }
-    stratum_swapObject2d(hspace: number, hojb1: number, hojb2: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.swapObjects(hojb1, hojb2) : 0;
+    stratum_objectToBottom2d(hspace: number, hobject: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        w.scene.setElements([obj, ...w.scene.elements().filter((e) => e !== obj)]);
+        return 1;
+    }
+    stratum_objectToTop2d(hspace: number, hobject: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.type === "group") return 0;
+
+        w.scene.setElements([...w.scene.elements().filter((e) => e !== obj), obj]);
+        return 1;
+    }
+    stratum_swapObject2d(hspace: number, hobj1: number, hobj2: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const obj1 = w.objects.get(hobj1);
+        if (!obj1 || obj1.type === "group") return 0;
+        const obj2 = w.objects.get(hobj2);
+        if (!obj2 || obj2.type === "group") return 0;
+
+        const e = w.scene.elements().slice();
+        const idx1 = e.indexOf(obj1);
+        if (idx1 < 0) return 0;
+        const idx2 = e.indexOf(obj2);
+        if (idx2 < 0) return 0;
+
+        const c = e[idx1];
+        e[idx1] = e[idx2];
+        e[idx2] = c;
+
+        w.scene.setElements(e);
+        return 1;
+    }
+
+    private createLine(hspace: number, hpen: number, hbrush: number, coordinates: readonly number[]): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        let realCoords = coordinates;
+
+        const mat = w.matrix;
+        if (mat) {
+            const coords = coordinates.slice();
+            for (let i = 0; i < realCoords.length; i += 2) {
+                const x = realCoords[i];
+                const y = realCoords[i + 1];
+                const w = x * mat[2] + y * mat[5] + mat[8];
+                coords[i] = (x * mat[0] + y * mat[3] + mat[6]) / w;
+                coords[i + 1] = (x * mat[1] + y * mat[4] + mat[7]) / w;
+            }
+            realCoords = coords;
+        }
+
+        const pen = w.pens.get(hpen);
+        const brush = w.brushes.get(hbrush);
+
+        const handle = HandleMap.getFreeHandle(w.objects);
+        const line = new graphicsImpl.line(w.scene, realCoords, { handle, pen, brush });
+        w.objects.set(handle, line);
+        w.scene.setElements([...w.scene.elements(), line]);
+        return handle;
     }
 
     // Функции для работы с полилиниями
     //
-    stratum_createPolyLine2d(hspace: number, hpen: number, hbrush: number, ...coords: number[]): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createLine(coords, hpen, hbrush) : 0;
+    stratum_createPolyLine2d(hspace: number, hpen: number, hbrush: number, ...coords: readonly number[]): number {
+        return this.createLine(hspace, hpen, hbrush, coords);
     }
     stratum_createLine2d(hspace: number, hpen: number, hbrush: number, x: number, y: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createLine([x, y], hpen, hbrush) : 0;
+        return this.createLine(hspace, hpen, hbrush, [x, y]);
     }
     stratum_addPoint2d(hspace: number, hline: number, index: number, x: number, y: number): NumBool {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.addPoint(index, x, y) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        const line = wrapper.objects.get(hline);
+        if (line?.type !== "line") return 0;
+
+        const mat = wrapper.matrix;
+        if (!mat) {
+            return line.add(index, x, y) ? 1 : 0;
+        }
+
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+        const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+
+        return line.add(index, newX, newY) ? 1 : 0;
     }
     stratum_delpoint2d(hspace: number, hline: number, index: number): NumBool {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.deletePoint(index) : 0;
+        const line = this.scenes.get(hspace)?.objects.get(hline);
+        return line?.type === "line" ? (line.delete(index) ? 1 : 0) : 0;
     }
     stratum_getPenObject2d(hspace: number, hline: number): number {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.penHandle() : 0;
+        const line = this.scenes.get(hspace)?.objects.get(hline);
+        return line?.type === "line" ? line.pen.tool()?.handle ?? 0 : 0;
     }
     stratum_getBrushObject2d(hspace: number, hline: number): number {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.brushHandle() : 0;
+        const line = this.scenes.get(hspace)?.objects.get(hline);
+        return line?.type === "line" ? line.brush.tool()?.handle ?? 0 : 0;
     }
     stratum_getVectorNumPoints2d(hspace: number, hline: number): number {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.pointCount() : 0;
+        const line = this.scenes.get(hspace)?.objects.get(hline);
+        return line?.type === "line" ? line.pointCount() : 0;
     }
     stratum_getVectorPoint2dx(hspace: number, hline: number, index: number): number {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.pointOriginX(index) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        const line = wrapper.objects.get(hline);
+        if (line?.type !== "line") return 0;
+
+        const mat = wrapper.invMatrix;
+        if (!mat) {
+            return line.px(index);
+        }
+
+        const x = line.px(index);
+        const y = line.py(index);
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        return (x * mat[0] + y * mat[3] + mat[6]) / w;
     }
     stratum_getVectorPoint2dy(hspace: number, hline: number, index: number): number {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.pointOriginY(index) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        const line = wrapper.objects.get(hline);
+        if (line?.type !== "line") return 0;
+
+        const mat = wrapper.invMatrix;
+        if (!mat) {
+            return line.py(index);
+        }
+
+        const x = line.px(index);
+        const y = line.py(index);
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        return (x * mat[1] + y * mat[4] + mat[7]) / w;
     }
     // stratum_setBrushObject2d(hspace : number, hline : number, hbrush : number) : NumBool {}
     // stratum_setPenObject2d(hspace : number, hline : number, hpen : number) : NumBool {}
     stratum_setVectorPoint2d(hspace: number, hline: number, index: number, x: number, y: number): NumBool {
-        const obj = this.getObject(hspace, hline);
-        return typeof obj !== "undefined" ? obj.setPointOrigin(index, x, y) : 0;
+        const wrapper = this.scenes.get(hspace);
+        if (!wrapper) return 0;
+
+        const line = wrapper.objects.get(hline);
+        if (line?.type !== "line") return 0;
+
+        const mat = wrapper.matrix;
+        if (!mat) {
+            return line.update(index, x, y) ? 1 : 0;
+        }
+
+        const w = x * mat[2] + y * mat[5] + mat[8];
+        const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+        const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+
+        return line.update(index, newX, newY) ? 1 : 0;
     }
 
     // Функции для работы с группами
-    stratum_createGroup2d(hspace: number, ...hobject: number[]): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createGroup(hobject) : 0;
+    stratum_createGroup2d(hspace: number, ...hobject: readonly number[]): number {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const children = new Set<SceneElement>();
+        for (const h of hobject) {
+            const obj = w.objects.get(h);
+            if (!obj) return 0;
+            children.add(obj);
+        }
+
+        const handle = HandleMap.getFreeHandle(w.objects);
+        w.objects.set(handle, new GroupElement2D(w.scene, { handle, children: [...children] }));
+        return handle;
     }
     stratum_deleteGroup2d(hspace: number, hgroup: number): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.deleteGroup2d(hgroup) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const group = w.objects.get(hgroup);
+        if (group?.type !== "group") return 0;
+
+        const p = group.parent();
+        if (p) {
+            p.setChildren(p.children().filter((o) => o !== group));
+        }
+        group.setChildren([]);
+        w.objects.delete(hgroup);
+        return 1;
     }
 
     stratum_addGroupItem2d(hspace: number, hgroup: number, hobject: number): NumBool {
-        const obj = this.getObject(hspace, hgroup);
-        return typeof obj !== "undefined" ? obj.addItem(hobject) : 0;
+        if (hgroup === hobject) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const obj = w.objects.get(hobject);
+        if (!obj || obj.parent()) return 0;
+
+        const group = w.objects.get(hgroup);
+        if (group?.type !== "group") return 0;
+
+        if (obj.type === "group") {
+            let p: GroupElement2D | null = group;
+            while ((p = p.parent())) if (p === obj) return 0;
+        }
+        group.setChildren([...group.children(), obj]);
+        return 1;
     }
     stratum_delGroupItem2d(hspace: number, hgroup: number, hobject: number): NumBool {
-        const obj = this.getObject(hspace, hgroup);
-        return typeof obj !== "undefined" ? obj.deleteItem(hobject) : 0;
+        if (hgroup === hobject) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const group = w.objects.get(hgroup);
+        if (group?.type !== "group") return 0;
+
+        const obj = w.objects.get(hobject);
+        if (obj?.parent() !== group) return 0;
+
+        group.setChildren(group.children().filter((e) => e !== obj));
+        return 1;
     }
 
     stratum_getGroupItemsNum2d(hspace: number, hgroup: number): number {
-        const obj = this.getObject(hspace, hgroup);
-        return typeof obj !== "undefined" ? obj.itemCount() : 0;
+        const group = this.scenes.get(hspace)?.objects.get(hgroup);
+        return group?.type === "group" ? group.children().length : 0;
     }
     stratum_getGroupItem2d(hspace: number, hgroup: number, index: number): number {
-        const obj = this.getObject(hspace, hgroup);
-        return typeof obj !== "undefined" ? obj.itemHandle(index) : 0;
+        if (index < 0) return 0;
+        const group = this.scenes.get(hspace)?.objects.get(hgroup);
+        if (group?.type !== "group") return 0;
+        const c = group.children();
+        return index < c.length ? c[index].handle : 0;
     }
     // stratum_setGroupItem2d(hspace: number, hgroup: number, index: number, hobject : number): NumBool {
     //     const obj = this.getObject(hspace, hgroup);
@@ -1458,38 +2491,93 @@ export class Enviroment implements EnviromentFunctions {
     //     return typeof obj !== "undefined" ? obj.itemHandle(index) : 0;
     // }
     stratum_getObjectParent2d(hspace: number, hobject: number): number {
-        const obj = this.getObject(hspace, hobject);
-        return typeof obj !== "undefined" ? obj.parentHandle() : 0;
+        return this.scenes.get(hspace)?.objects.get(hobject)?.parent()?.handle ?? 0;
     }
     // FLOAT IsGroupContainObject2d(HANDLE HSpace, HANDLE HGroup, HANDLE HObject)
 
     // Прочее
     //
     stratum_isObjectsIntersect2d(hspace: number, hobj1: number, hobj2: number /*flags: number*/): NumBool {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.isIntersect(hobj1, hobj2) : 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const o1 = w.objects.get(hobj1);
+        if (!o1) return 0;
+        const o2 = w.objects.get(hobj2);
+        if (!o2) return 0;
+
+        const o1_minX = o1.x();
+        const o1_maxX = o1_minX + o1.width();
+        const o1_minY = o1.y();
+        const o1_maxY = o1_minY + o1.height();
+
+        const o2_minX = o2.x();
+        const o2_maxX = o2_minX + o2.width();
+        const o2_minY = o2.y();
+        const o2_maxY = o2_minY + o2.height();
+
+        return o1_maxX >= o2_minX && o2_maxX >= o1_minX && o1_maxY >= o2_minY && o2_maxY >= o1_minY ? 1 : 0;
     }
 
     // Объект Контрол
     stratum_createControlObject2d(hspace: number, className: string, text: string, style: number, x: number, y: number, width: number, height: number): number {
-        const scene = this.scenes.get(hspace);
-        return typeof scene !== "undefined" ? scene.createControl(x, y, width, height, className, text, style) : 0;
+        const inputType = className.toUpperCase();
+        if (inputType !== "EDIT" && inputType !== "BUTTON" && inputType !== "COMBOBOX") {
+            return 0;
+        }
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        let realX = x;
+        let realY = y;
+
+        const mat = w.matrix;
+        if (mat) {
+            const w = x * mat[2] + y * mat[5] + mat[8];
+            realX = (x * mat[0] + y * mat[3] + mat[6]) / w;
+            realY = (x * mat[1] + y * mat[4] + mat[7]) / w;
+        }
+
+        // WIP: добавить другие типы контролов.
+        if (inputType !== "EDIT") throw Error(`Элемент ввода ${inputType} не реализован.`);
+
+        const handle = HandleMap.getFreeHandle(w.objects);
+        const input = new graphicsImpl.input(w.scene, { handle, x: realX, y: realY, text, width, height });
+        w.objects.set(handle, input);
+        w.scene.setElements([...w.scene.elements(), input]);
+        return handle;
     }
 
     stratum_setControlFont2d(hspace: number, hobject: number, hfont: number): NumBool {
-        return this.getObject(hspace, hobject)?.setControlFont(hfont) ?? 0;
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const font = w.fonts.get(hfont);
+        if (!font) return 0;
+
+        const input = w.objects.get(hobject);
+        // WIP: добавить для других типов контролов.
+        if (input?.type !== "input") return 0;
+
+        input.font.setTool(font);
+        return 1;
     }
 
     stratum_getControlText2d(hspace: number, hcontrol: number, begin?: number, length?: number): string {
-        const obj = this.getObject(hspace, hcontrol);
-        if (typeof obj === "undefined") return "";
+        const input = this.scenes.get(hspace)?.objects.get(hcontrol);
+        // WIP: добавить для других типов контролов.
+        if (input?.type !== "input") return "";
 
-        if (typeof begin === "undefined" || typeof length === "undefined") return obj.controlText();
-        return obj.controlText().slice(begin, begin + length);
+        if (typeof begin === "undefined" || typeof length === "undefined") return input.text();
+        return input.text().slice(begin, begin + length);
     }
     stratum_setControlText2d(hspace: number, hcontrol: number, text: string): NumBool {
-        const obj = this.getObject(hspace, hcontrol);
-        return typeof obj !== "undefined" ? obj.setControlText(text) : 0;
+        const input = this.scenes.get(hspace)?.objects.get(hcontrol);
+        // WIP: добавить для других типов контролов.
+        if (input?.type !== "input") return 0;
+        input.setText(text);
+        return 1;
     }
     //#endregion
 
