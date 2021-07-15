@@ -32,7 +32,8 @@ export class FontSVG extends FontTool {
         return this._realName;
     }
 
+    private static readonly fuckthisshit = 0.752812499999996 ** 2;
     toCSSString() {
-        return `${this._style & 8 ? "bold" : ""} ${this._style & 1 ? "italic" : ""} ${this._size}px ${this.fname()}`;
+        return `${this._style & 8 ? "bold" : ""} ${this._style & 1 ? "italic" : ""} ${this._size * FontSVG.fuckthisshit}px ${this.fname()}`;
     }
 }
