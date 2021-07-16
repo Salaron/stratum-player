@@ -143,20 +143,20 @@ export class RendererSVG extends Scene implements EventListenerObject {
         RendererSVG.updater.run(RendererSVG.redrawAll);
     }
 
-    private createOrderHTML(elements: readonly HTMLChild[]): HTMLChild[] {
-        let doc: DocumentFragment | null = null;
-        const order = elements.map<HTMLChild>((cur) => {
-            if (cur._html.parentElement) return cur;
-            if (!doc) {
-                doc = document.createDocumentFragment();
-            }
-            this.htmlOrder.push(cur);
-            doc.appendChild(cur._html);
-            return cur;
-        });
-        if (doc) this.view.appendChild(doc);
-        return order;
-    }
+    // private createOrderHTML(elements: readonly HTMLChild[]): HTMLChild[] {
+    //     let doc: DocumentFragment | null = null;
+    //     const order = elements.map<HTMLChild>((cur) => {
+    //         if (cur._html.parentElement) return cur;
+    //         if (!doc) {
+    //             doc = document.createDocumentFragment();
+    //         }
+    //         this.htmlOrder.push(cur);
+    //         doc.appendChild(cur._html);
+    //         return cur;
+    //     });
+    //     if (doc) this.view.appendChild(doc);
+    //     return order;
+    // }
 
     // private static reoderSVG2(root: SVGSVGElement, prevOrder: readonly SVGChild[], curOrder: readonly SVGChild[]): void {
     //     // const minlen = Math.min(prevOrder.length, newOrder.length);
@@ -270,6 +270,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
             this.lastElementsVer = this._elementsVer;
 
             let doc: DocumentFragment | null = null;
+            let doc2: DocumentFragment | null = null;
 
             const svgs: SVGChild[] = [];
             const htmls: InputSVG[] = [];
@@ -285,16 +286,23 @@ export class RendererSVG extends Scene implements EventListenerObject {
                     doc.appendChild(e._svg);
                 } else {
                     htmls.push(e);
+                    if (e._html.parentElement) return;
+                    if (!doc2) {
+                        doc2 = document.createDocumentFragment();
+                    }
+                    this.htmlOrder.push(e);
+                    doc2.appendChild(e._html);
                 }
             });
             if (doc) this.root.appendChild(doc);
+            if (doc2) this.view.appendChild(doc2);
 
-            const htmlOrder = this.createOrderHTML(htmls);
+            // const htmlOrder = this.createOrderHTML(htmls);
 
             RendererSVG.reoderSVG(this.root, this.svgOrder, svgs);
             this.svgOrder = svgs;
-            RendererSVG.reoderHTML(this.view, this.htmlOrder, htmlOrder);
-            this.htmlOrder = htmlOrder;
+            RendererSVG.reoderHTML(this.view, this.htmlOrder, htmls);
+            this.htmlOrder = htmls;
         }
 
         els.forEach((e) => e.render());
