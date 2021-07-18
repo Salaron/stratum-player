@@ -9,6 +9,8 @@ export class FontSVG extends FontTool {
     private _prevName = "";
     private _realName: string = "";
 
+    private _scaleThis = false;
+
     fstyle(): string {
         return this._style & 1 ? "italic" : "normal";
     }
@@ -23,12 +25,27 @@ export class FontSVG extends FontTool {
         return this._style & 8 ? "bold" : "normal";
     }
 
-    fname(): string {
+    private scaleThis(): boolean {
         const nm = this._name;
         if (this._prevName !== nm) {
             this._prevName = nm;
-            this._realName = nm.toUpperCase().endsWith(" CYR") ? nm.slice(0, nm.length - 4) : nm;
+            const scale = nm.toUpperCase().endsWith(" CYR");
+            this._realName = scale ? nm.slice(0, nm.length - 4) : nm;
+            this._scaleThis = scale;
         }
+        return this._scaleThis;
+    }
+
+    // spacing(): number {
+    //     return this.scaleThis() ? 0.5 : -0.5;
+    // }
+
+    // scale(): number {
+    //     return this.scaleThis() ? this.size() + 1 : this.size() - 1;
+    // }
+
+    fname(): string {
+        this.scaleThis();
         return this._realName;
     }
 

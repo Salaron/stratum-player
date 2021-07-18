@@ -27,7 +27,7 @@ export class TextSVG extends TextElement2D {
         });
         this._svg.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
         this._svg.setAttribute("alignment-baseline", "text-before-edge");
-        // this._svg.setAttribute("letter-spacing", "-0.07");
+        this._svg.setAttribute("letter-spacing", "-0.07");
         this._svg.style.setProperty("white-space", "pre");
         this._svg.style.setProperty("user-select", "none");
 

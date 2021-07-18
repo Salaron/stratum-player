@@ -82,6 +82,7 @@ export class TSpanSVG {
             const f = part.font._tool as FontSVG;
             this._spans.forEach((s) => {
                 s.setAttribute("font-family", f.fname());
+                // s.setAttribute("letter-spacing", f.spacing().toString());
                 s.setAttribute("font-size", f.size().toString());
                 s.setAttribute("font-style", f.fstyle());
                 s.setAttribute("text-decoration", f.tdecoration());
