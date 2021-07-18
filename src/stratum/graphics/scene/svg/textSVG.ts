@@ -37,12 +37,12 @@ export class TextSVG extends TextElement2D {
     }
 
     private getBbox(): DOMRect {
+        this.render();
         if (!this.bbox) {
             const p = this._svg.parentElement;
             if (!p) {
                 (this.scene as RendererSVG).root.appendChild(this._svg);
             }
-            this.render();
             this.bbox = this._svg.getBBox();
             if (!p) {
                 this._svg.remove();
@@ -96,16 +96,16 @@ export class TextSVG extends TextElement2D {
         //     this.prevOy = oy;
         //     this._svg.setAttribute("y", oy.toString());
         // }
-        const w = this._width;
-        if (this.prevWidth !== w) {
-            this.prevWidth = w;
-            this._svg.setAttribute("width", w.toString());
-        }
-        const h = this._height;
-        if (this.prevHeight !== h) {
-            this.prevHeight = h;
-            this._svg.setAttribute("height", h.toString());
-        }
+        // const w = this._width;
+        // if (this.prevWidth !== w) {
+        //     this.prevWidth = w;
+        //     this._svg.setAttribute("width", w.toString());
+        // }
+        // const h = this._height;
+        // if (this.prevHeight !== h) {
+        //     this.prevHeight = h;
+        //     this._svg.setAttribute("height", h.toString());
+        // }
         const ox = this._x - this.scene._offsetX;
         const oy = this._y - this.scene._offsetY;
         const a = this._angle;
