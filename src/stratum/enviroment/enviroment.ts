@@ -885,7 +885,10 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     private createWindowFrame(parent: SceneWrapper, prj: Project, wname: string, params: EnviromentWindowSettings): number {
-        return this.createScene(prj, wname, params, (view, opts) => new FrameController(view as HTMLDivElement, parent.scene, opts)).handle;
+        const w = this.createScene(prj, wname, params, (view, opts) => new FrameController(view as HTMLDivElement, parent, opts));
+        w.parent = parent;
+        parent.children.add(w);
+        return w.handle;
     }
 
     private createScene(prj: Project, wname: string, params: EnviromentWindowSettings, getWindow: WindowHost["append"]): SceneWrapper {
@@ -975,6 +978,8 @@ export class Enviroment implements EnviromentFunctions {
             keyCharSubs: new Set(),
             spaceDoneSubs: new Set(),
             windowMoveSubs: new Set(),
+
+            children: new Set(),
         };
 
         if (wnd.on) {
@@ -1135,10 +1140,12 @@ export class Enviroment implements EnviromentFunctions {
 
     // Параметры экрана
     stratum_getScreenWidth(): number {
-        return screen.width;
+        return this.host.width || window.innerWidth;
+        // return 1920;
     }
     stratum_getScreenHeight(): number {
-        return screen.height;
+        return this.host.height || window.innerHeight;
+        // return 1080;
     }
     stratum_getWorkAreaX(): number {
         return 0;
@@ -1330,7 +1337,7 @@ export class Enviroment implements EnviromentFunctions {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        const svg = (w.scene as RendererSVG).root;
+        const svg = (w.scene as RendererSVG).rootSVG;
 
         //get svg source.
         const serializer = new XMLSerializer();
@@ -1382,6 +1389,7 @@ export class Enviroment implements EnviromentFunctions {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
         w.scale = ms;
+        w.scene.scale(ms);
         return 1;
     }
     // stratum_emptySpace2d(hspace: number): NumBool {

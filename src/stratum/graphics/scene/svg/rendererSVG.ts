@@ -69,10 +69,10 @@ export class RendererSVG extends Scene implements EventListenerObject {
         RendererSVG._mouseY = evt.clientY;
 
         const t = evt.target as SVGSVGElement;
-        if (RendererSVG.currentScene?.root !== t) {
+        if (RendererSVG.currentScene?.rootSVG !== t) {
             RendererSVG.currentScene = null;
             for (const v of RendererSVG.scenes) {
-                if (v.root.contains(t)) {
+                if (v.rootSVG.contains(t)) {
                     RendererSVG.currentScene = v;
                     break;
                 }
@@ -105,6 +105,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
     private svgOrder: SVGChild[] = [];
     private htmlOrder: HTMLChild[] = [];
     private _rect: DOMRect | null = null;
+    private prevScale: number = 1;
 
     private handlers: RendererSVGHandlers = {
         pointerdown: new Set(),
@@ -119,7 +120,8 @@ export class RendererSVG extends Scene implements EventListenerObject {
     // _defs: SVGDefsElement;
 
     readonly view: HTMLDivElement;
-    readonly root: SVGSVGElement;
+    readonly rootSVG: SVGSVGElement;
+    readonly rootHTML: HTMLDivElement;
 
     constructor(args?: SceneArgs) {
         super(args);
@@ -131,12 +133,20 @@ export class RendererSVG extends Scene implements EventListenerObject {
         view.style.setProperty("height", "100%");
         view.style.setProperty("background-color", "white");
 
-        this.root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        this.root.addEventListener("selectstart", this);
-        this.root.style.setProperty("width", "100%");
-        this.root.style.setProperty("height", "100%");
-        this.root.style.setProperty("touch-action", "pinch-zoom"); //было: "pan-x pan-y". pinch-zoom работает лучше.
-        view.appendChild(this.root);
+        this.rootSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        this.rootSVG.addEventListener("selectstart", this);
+        this.rootSVG.style.setProperty("width", "100%");
+        this.rootSVG.style.setProperty("height", "100%");
+        this.rootSVG.style.setProperty("transform-origin", "top left");
+        this.rootSVG.style.setProperty("touch-action", "pinch-zoom"); //было: "pan-x pan-y". pinch-zoom работает лучше.
+
+        this.rootHTML = document.createElement("div");
+        this.rootHTML.style.setProperty("width", "100%");
+        this.rootHTML.style.setProperty("height", "100%");
+        this.rootHTML.style.setProperty("transform-origin", "top left");
+
+        view.appendChild(this.rootSVG);
+        view.appendChild(this.rootHTML);
 
         // this.root.appendChild((this._defs = document.createElementNS("http://www.w3.org/2000/svg", "defs")));
         RendererSVG.scenes.add(this);
@@ -354,13 +364,25 @@ export class RendererSVG extends Scene implements EventListenerObject {
 
     private rect(): DOMRect {
         if (!this._rect) {
-            this._rect = this.root.getBoundingClientRect();
+            this._rect = this.view.getBoundingClientRect();
         }
         return this._rect;
     }
 
     private render(): this {
         const els = this._elements as SVGOrHTMLChild[];
+
+        const scale = this._scale;
+        if (this.prevScale !== scale) {
+            this.prevScale = scale;
+            this.rootSVG.style.setProperty("transform", `scale(${scale})`);
+            this.rootSVG.style.setProperty("width", `${100 / scale}%`);
+            this.rootSVG.style.setProperty("height", `${100 / scale}%`);
+
+            this.rootHTML.style.setProperty("transform", `scale(${scale})`);
+            this.rootHTML.style.setProperty("width", `${100 / scale}%`);
+            this.rootHTML.style.setProperty("height", `${100 / scale}%`);
+        }
 
         if (this.lastElementsVer !== this._elementsVer) {
             this.lastElementsVer = this._elementsVer;
@@ -390,14 +412,14 @@ export class RendererSVG extends Scene implements EventListenerObject {
                     doc2.appendChild(e._html);
                 }
             });
-            if (doc) this.root.appendChild(doc);
-            if (doc2) this.view.appendChild(doc2);
+            if (doc) this.rootSVG.appendChild(doc);
+            if (doc2) this.rootHTML.appendChild(doc2);
 
             // const htmlOrder = this.createOrderHTML(htmls);
 
-            RendererSVG.reoderSVG(this.root, this.svgOrder, svgs);
+            RendererSVG.reoderSVG(this.rootSVG, this.svgOrder, svgs);
             this.svgOrder = svgs;
-            RendererSVG.reoderHTML(this.view, this.htmlOrder, htmls);
+            RendererSVG.reoderHTML(this.rootHTML, this.htmlOrder, htmls);
             this.htmlOrder = htmls;
         }
 
@@ -408,10 +430,17 @@ export class RendererSVG extends Scene implements EventListenerObject {
 
     elementAtPoint(x: number, y: number): SVGChild | null {
         const rect = this.rect();
-        const clientX = rect.left + x - this._offsetX;
-        const clientY = rect.top + y - this._offsetY;
-        const el = document.elementFromPoint(clientX, clientY);
-        return (el && this.svgOrder.find((e) => e._svg.contains(el))) || null;
+        const clientX = rect.left + (x - this._offsetX) * this.prevScale;
+        const clientY = rect.top + (y - this._offsetY) * this.prevScale;
+        const el = document.elementsFromPoint(clientX, clientY);
+        if (el.length === 0) return null;
+
+        for (const e of el) {
+            const f = this.svgOrder.find((s) => s._svg.contains(e));
+            if (f) return f;
+        }
+        return null;
+        // return (el.length > && this.svgOrder.find((e) => e._svg.contains(el))) || null;
     }
 
     setCapture(): this {
@@ -445,8 +474,8 @@ export class RendererSVG extends Scene implements EventListenerObject {
 
     mouseCoords(): [number, number] {
         const rect = this.rect();
-        const x = RendererSVG._mouseX - rect.left + this._offsetX; /// scene._scale;
-        const y = RendererSVG._mouseY - rect.top + this._offsetY; /// scene._scale;
+        const x = (RendererSVG._mouseX - rect.left) / this.prevScale + this._offsetX;
+        const y = (RendererSVG._mouseY - rect.top) / this.prevScale + this._offsetY;
         return [x, y];
     }
 
@@ -454,8 +483,8 @@ export class RendererSVG extends Scene implements EventListenerObject {
         const type = evt.type as ScenePointerEventType;
 
         const rect = this.rect();
-        const clickX = evt.clientX - rect.left; // / this._scale;
-        const clickY = evt.clientY - rect.top; /// this._scale;
+        const clickX = (evt.clientX - rect.left) / this.prevScale;
+        const clickY = (evt.clientY - rect.top) / this.prevScale;
         const x = clickX + this._offsetX;
         const y = clickY + this._offsetY;
         const { button, buttons } = evt;

@@ -63,6 +63,7 @@ export abstract class Scene {
 
     _offsetX: number;
     _offsetY: number;
+    _scale: number = 1;
     _offsetVer: number = 0;
 
     _dirty: boolean = true;
@@ -77,6 +78,11 @@ export abstract class Scene {
         this._offsetX = args.offsetX ?? 0;
         this._offsetY = args.offsetY ?? 0;
         this._layers = args.layers ?? 0;
+    }
+
+    scale(scale: number): this {
+        this._scale = scale;
+        return this;
     }
 
     layers(): number {

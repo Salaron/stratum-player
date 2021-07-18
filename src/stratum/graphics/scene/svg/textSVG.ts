@@ -41,7 +41,7 @@ export class TextSVG extends TextElement2D {
         if (!this.bbox) {
             const p = this._svg.parentElement;
             if (!p) {
-                (this.scene as RendererSVG).root.appendChild(this._svg);
+                (this.scene as RendererSVG).rootSVG.appendChild(this._svg);
             }
             this.bbox = this._svg.getBBox();
             if (!p) {

@@ -49,4 +49,6 @@ export interface SceneWrapper {
     keyDownSubs: Set<EventSubscriber>;
     keyUpSubs: Set<EventSubscriber>;
     keyCharSubs: Set<EventSubscriber>;
+
+    children: Set<SceneWrapper>;
 }

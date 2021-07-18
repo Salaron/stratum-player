@@ -1,6 +1,6 @@
-import { Scene } from "stratum/graphics/scene/scene";
 import { Point2D } from "stratum/helpers/types";
 import { ViewContainerController, ViewContainerOptions } from "stratum/stratum";
+import { SceneWrapper } from "./sceneWrapper";
 
 export class FrameController implements ViewContainerController {
     private lastX: number;
@@ -11,12 +11,12 @@ export class FrameController implements ViewContainerController {
 
     private pos: Point2D;
 
-    constructor(private view: HTMLDivElement, private parent: Scene, params: ViewContainerOptions) {
+    constructor(private view: HTMLDivElement, private parent: SceneWrapper, params: ViewContainerOptions) {
         const pos = params.position ?? { x: 0, y: 0 };
         this.pos = pos;
 
-        this.lastX = pos.x - parent.offsetX();
-        this.lastY = pos.y - parent.offsetY();
+        this.lastX = (pos.x - parent.scene.offsetX()) * parent.scale;
+        this.lastY = (pos.y - parent.scene.offsetY()) * parent.scale;
         this.lastW = params.size?.width ?? 0;
         this.lastH = params.size?.height ?? 0;
 
@@ -25,7 +25,7 @@ export class FrameController implements ViewContainerController {
         view.style.setProperty("top", this.lastY + "px");
         view.style.setProperty("width", this.lastW + "px");
         view.style.setProperty("height", this.lastH + "px");
-        parent.view.appendChild(view);
+        parent.scene.view.appendChild(view);
     }
     close(): void {
         this.view.remove();
@@ -40,12 +40,12 @@ export class FrameController implements ViewContainerController {
 
     setOrigin(x: number, y: number): void {
         this.pos = { x, y };
-        const newX = x - this.parent.offsetX();
+        const newX = (x - this.parent.scene.offsetX()) * this.parent.scale;
         if (newX !== this.lastX) {
             this.lastX = newX;
             this.view.style.setProperty("left", newX + "px");
         }
-        const newY = y - this.parent.offsetY();
+        const newY = (y - this.parent.scene.offsetY()) * this.parent.scale;
         if (newY !== this.lastY) {
             this.lastY = newY;
             this.view.style.setProperty("top", newY + "px");
