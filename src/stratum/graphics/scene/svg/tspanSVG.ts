@@ -5,10 +5,14 @@ import { TextSVG } from "./textSVG";
 
 function createTspan() {
     const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
-    tspan.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
-    tspan.setAttribute("alignment-baseline", "text-before-edge");
-    // tspan.setAttribute("letter-spacing", "-0.2");
-    tspan.style.setProperty("user-select", "none");
+    // tspan.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
+    // tspan.setAttribute("alignment-baseline", "text-before-edge");
+    // tspan.style.setProperty("white-space", "pre");
+    // tspan.style.setProperty("user-select", "none");
+    // tspan.style.setProperty("white-space", "pre");
+    // tspan.style.setProperty("user-select", "none");
+
+    // tspan.setAttribute("letter-spacing", "-0.07");
     return tspan;
 }
 
@@ -24,11 +28,10 @@ export class TSpanSVG {
         this._spans = strs.map(() => createTspan());
     }
 
-    dy = 0;
-    render(dy: number): boolean {
-        this.dy = dy;
+    render(): boolean {
         let shapeChanged = false;
         const part = this.part;
+
         const text = part.str._tool.text();
         if (this._prevText !== text) {
             this._prevText = text;
@@ -64,20 +67,10 @@ export class TSpanSVG {
             this._spans.forEach((s, i) => {
                 if (i > 0) {
                     s.setAttribute("x", "0px");
-                    const hidden = strs[i].trim().length === 0;
-                    if (hidden) {
-                        s.innerHTML = "";
-                        ++this.dy;
-                        return;
-                    }
-                    s.setAttribute("dy", `${this.dy + 1}em`);
-                    this.dy = 0;
-                } else if (this.dy > 0) {
-                    s.setAttribute("x", "0px");
-                    s.setAttribute("dy", `${this.dy}em`);
-                    this.dy = 0;
+                    s.setAttribute("dy", `1.15em`);
+                    // s.setAttribute("dy", f.size() + "px");
                 }
-                s.innerHTML = strs[i];
+                s.innerHTML = strs[i] || "&#8203;";
             });
 
             shapeChanged = true;
@@ -85,8 +78,8 @@ export class TSpanSVG {
 
         if (this._prevFontVer !== part.font._ver) {
             this._prevFontVer = part.font._ver;
-            const f = part.font._tool as FontSVG;
 
+            const f = part.font._tool as FontSVG;
             this._spans.forEach((s) => {
                 s.setAttribute("font-family", f.fname());
                 s.setAttribute("font-size", f.size().toString());

@@ -25,6 +25,12 @@ export class TextSVG extends TextElement2D {
             span._spans.forEach((s) => frag.append(s));
             return span;
         });
+        this._svg.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
+        this._svg.setAttribute("alignment-baseline", "text-before-edge");
+        // this._svg.setAttribute("letter-spacing", "-0.07");
+        this._svg.style.setProperty("white-space", "pre");
+        this._svg.style.setProperty("user-select", "none");
+
         this._svg.appendChild(frag);
         this._updateBBox(args.x ?? 0, args.y ?? 0, args.width ?? this.actualWidth(), args.height ?? this.actualHeight());
         this._parent?._recalcBorders();
@@ -72,11 +78,9 @@ export class TextSVG extends TextElement2D {
         if (!visible) return;
 
         let shapeChanged = false;
-        let dy = 0;
         this.spans.forEach((s) => {
-            const res = s.render(dy);
+            const res = s.render();
             shapeChanged = shapeChanged || res;
-            dy = s.dy;
         });
         if (shapeChanged) {
             this.bbox = null;
