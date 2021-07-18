@@ -50,7 +50,13 @@ export class TextSVG extends TextElement2D {
     }
 
     actualHeight(): number {
-        return this.getBbox().height;
+        // return this.getBbox().height;
+        let maxS = 0;
+        this.tool._tool.parts.forEach((p) => {
+            const s = p.font._tool.size();
+            if (s > maxS) maxS = s;
+        });
+        return maxS * 1.15;
     }
 
     render(): void {
