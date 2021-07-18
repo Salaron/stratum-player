@@ -41,9 +41,10 @@ export interface EnviromentElementsTools {
 export function createElements(scene: Scene, tools: EnviromentElementsTools, elements?: VectorDrawingElement[]): Map<number, SceneElement> {
     const groups = new Set<{ g: GroupElement2D; h: number[] }>();
     const mapFunc: (e: VectorDrawingElement) => [number, SceneElement] = (e) => {
+        const hardHidden = parseHardHidden(e.options);
         const layer = parseLayer(e.options);
         const canSelect = parseSeleсtable(e.options);
-        const visib = new VisibilityComponent(scene, true, layer);
+        const visib = new (hardHidden ? HardHiddenVisibilityComponent : VisibilityComponent)(scene, true, layer);
         const unselectable = canSelect ? null : new UnSelectableComponent();
 
         switch (e.type) {
@@ -109,7 +110,6 @@ export function createElements(scene: Scene, tools: EnviromentElementsTools, ele
                 const img = (isTransparent ? tools.doubleDibs : tools.dibs).get(e.dibHandle);
                 if (!img) throw Error(`Инструмент битовая карта #${e.dibHandle} не найден`);
 
-                const hardHidden = parseHardHidden(e.options);
                 const args: ImageElement2DArgs = {
                     handle: e.handle,
                     name: e.name,
@@ -118,7 +118,7 @@ export function createElements(scene: Scene, tools: EnviromentElementsTools, ele
                     y: e.originY,
                     width: hardHidden ? 1 : e.width,
                     height: hardHidden ? 1 : e.height,
-                    visib: hardHidden ? new HardHiddenVisibilityComponent(scene, true, layer) : visib,
+                    visib,
                     unselectable,
                     crop: {
                         x: e.cropX,
