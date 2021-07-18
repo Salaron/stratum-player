@@ -312,18 +312,24 @@ export class Enviroment implements EnviromentFunctions {
         varFlagsArr?: MutableArrayLike<number>,
         varFlagsId?: number
     ): NumBool {
-        if (varIdx < 0) return 0;
         const vars = this.classes.get(classname)?.vars();
-        if (!vars) return 0;
-        if (varIdx > vars.count() - 1) return 0;
-        const data = vars.data(varIdx);
+        if (!vars || varIdx < 0 || varIdx > vars.count() - 1) {
+            varNameArr[varNameId] = "";
+            varTypeArr[varTypeId] = "";
+            varDescrArr[varDescrId] = "";
+            varDefValueArr[varDefValueId] = "";
+            if (varFlagsArr && typeof varFlagsId !== "undefined") {
+                varFlagsArr[varFlagsId] = 0;
+            }
+            return 0;
+        }
 
-        // FIXME: если переменная не найдена, значения должны обнулиться.
+        const data = vars.data(varIdx);
         varNameArr[varNameId] = data.name;
         varTypeArr[varTypeId] = data.typeString;
         varDescrArr[varDescrId] = data.description;
         varDefValueArr[varDefValueId] = data.rawDefaultValue;
-        if (typeof varFlagsArr !== "undefined" && typeof varFlagsId !== "undefined") {
+        if (varFlagsArr && typeof varFlagsId !== "undefined") {
             varFlagsArr[varFlagsId] = data.rawFlags;
         }
         return 1;
