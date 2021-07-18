@@ -980,10 +980,15 @@ export class Enviroment implements EnviromentFunctions {
             windowMoveSubs: new Set(),
 
             children: new Set(),
+            parent: null,
+            closed: false,
         };
 
         if (wnd.on) {
-            wnd.on("closed", () => this.removeWindow(wrapper, false));
+            wnd.on("closed", () => {
+                this.markClosed(wrapper);
+                this.removeClosed(false);
+            });
         }
 
         const bindPtr = this.handlePointer.bind(this, wrapper);
@@ -1003,33 +1008,52 @@ export class Enviroment implements EnviromentFunctions {
         return wrapper;
     }
 
-    private removeWindow(w: SceneWrapper, close: boolean): void {
-        this.windows.delete(w.wname);
-        this.scenes.delete(w.handle);
-        this.openedPopups.delete(w);
-        if (w.scene === this.captureTarget?.scene) {
-            this.captureTarget.scene.releaseCapture();
-            this.captureTarget = null;
-        }
-        w.wnd.off && w.wnd.off("closed");
-        close && w.wnd.close && w.wnd.close();
-        w.spaceDoneSubs.forEach((h) => h.receive(Constant.WM_SPACEDONE));
+    private markClosed(w: SceneWrapper): void {
+        w.parent?.children.delete(w);
+        w.children.forEach((c) => {
+            c.parent = null;
+            this.markClosed(c);
+        });
+        w.children.clear();
+        w.closed = true;
+    }
+
+    private removeClosed(close: boolean): void {
+        this.windows.forEach((w) => {
+            if (!w.closed) return;
+
+            if (w.scene === this.captureTarget?.scene) {
+                this.captureTarget.scene.releaseCapture();
+                this.captureTarget = null;
+            }
+
+            if (w.wnd.off) w.wnd.off("closed");
+            if (close && w.wnd.close) w.wnd.close();
+            w.spaceDoneSubs.forEach((h) => h.receive(Constant.WM_SPACEDONE));
+        });
+
+        this.windows = new Map([...this.windows].filter((w) => !w[1].closed));
+        this.scenes = new Map([...this.scenes].filter((w) => !w[1].closed));
+        this.openedPopups = new Set([...this.openedPopups].filter((w) => !w.closed));
     }
 
     private closeAllWindows(): void {
-        this.windows.forEach((w) => this.removeWindow(w, true));
+        this.windows.forEach((w) => this.markClosed(w));
+        this.removeClosed(true);
     }
 
     private closeProjectWindows(prj: Project): void {
         this.windows.forEach((w) => {
-            if (w.prj === prj) this.removeWindow(w, true);
+            if (w.prj === prj) this.markClosed(w);
         });
+        this.removeClosed(true);
     }
 
     private closePopups(except: SceneWrapper): void {
         this.openedPopups.forEach((w) => {
-            if (w !== except) this.removeWindow(w, true);
+            if (w !== except) this.markClosed(w);
         });
+        this.removeClosed(true);
     }
 
     // Реализации функций.
@@ -1298,7 +1322,8 @@ export class Enviroment implements EnviromentFunctions {
     stratum_closeWindow(wname: string): NumBool {
         const w = this.windows.get(wname);
         if (!w) return 0;
-        this.removeWindow(w, true);
+        this.markClosed(w);
+        this.removeClosed(true);
         return 1;
     }
     stratum_setWindowTransparent(wname: string, level: number): NumBool;

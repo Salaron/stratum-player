@@ -51,4 +51,6 @@ export interface SceneWrapper {
     keyCharSubs: Set<EventSubscriber>;
 
     children: Set<SceneWrapper>;
+    parent: SceneWrapper | null;
+    closed: boolean;
 }
