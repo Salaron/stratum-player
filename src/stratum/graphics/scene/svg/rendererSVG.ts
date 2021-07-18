@@ -189,6 +189,46 @@ export class RendererSVG extends Scene implements EventListenerObject {
     private static reoderSVG(root: SVGSVGElement, prevOrder: SVGChild[], newOrder: SVGChild[]): void {
         if (newOrder.length > prevOrder.length) throw Error();
 
+        // const del = new Set(prevOrder);
+        // let children = Array.from(root.children);
+
+        // let idx = 0;
+        // newOrder.forEach((e) => {
+        //     del.delete(e);
+        //     if (children[idx] === e._svg) {
+        //         ++idx;
+        //         return;
+        //     }
+        //     const realIdx = children.indexOf(e._svg);
+        //     if (realIdx < 0) throw Error("wtf");
+
+        //     if (realIdx < idx) {
+        //         const nxt = children[realIdx + 1];
+        //         root.insertBefore(e._svg, nxt);
+        //         children = Array.from(root.children);
+        //     }
+        //     idx = realIdx + 1;
+        // });
+
+        // if (del.size > 0) throw Error();
+        // return;
+
+        // newOrder.forEach((e, index) => {
+        //     del.delete(e);
+        //     const idx = children.indexOf(e._svg);
+        //     if(idx < 0) {
+        //         // вставить элемент
+        //         throw Error();
+        //     }
+        //     if(idx > index) {
+
+        //     }
+        // });
+        // console.log(prevOrder.map((o) => o.handle));
+        // console.log(newOrder.map((o) => o.handle));
+        // root.append(...newOrder.map((o) => o._svg));
+        // return;
+
         prevOrder.forEach((prev, prevIndex) => {
             // Новый индекс элемента.
             const newIndex = newOrder.indexOf(prev);
@@ -197,6 +237,62 @@ export class RendererSVG extends Scene implements EventListenerObject {
                 prev._svg.remove();
                 return;
             }
+
+            // Если элемент был первым
+            if (prevIndex === 0) {
+                // Если элемент так и остался первым, ничего не делаем.
+                if (newIndex === 0) return;
+                // Если же нет, переставляем на нужное место.
+                // console.log("here");
+                const curPrev = newOrder[newIndex - 1];
+                // root.insertBefore(curPrev._svg, prev._svg.nextElementSibling);
+                root.insertBefore(prev._svg, curPrev._svg);
+                return;
+            }
+
+            // // Если элемент был последним.
+            // if (prevIndex === prevOrder.length - 1) {
+            //     // Если элемент так и остался последним, ничего не делаем.
+            //     if (newIndex === newOrder.length - 1) return;
+            //     // Если же нет, переставляем на нужное место.
+            //     root.insertBefore(prev._svg, newOrder[newIndex + 1]._svg);
+            //     return;
+            // }
+            // // Элемент не был последим.
+
+            // Элемент не был первым.
+
+            // Элемент стал первым, перемещаем в начало.
+            if (newIndex === 0) {
+                root.insertBefore(prev._svg, root.firstElementChild);
+                return;
+            }
+
+            // // Элемент стал последним, перемещаем в конец.
+            // if (newIndex === newOrder.length - 1) {
+            //     root.appendChild(prev._svg);
+            //     return;
+            // }
+
+            const prevPrev = prevOrder[prevIndex - 1];
+            const curPrev = newOrder[newIndex - 1];
+
+            if (prevPrev === curPrev) return;
+            root.insertBefore(curPrev._svg, prev._svg);
+            // root.insertBefore(prev._svg, curNext._svg);
+        });
+        return;
+
+        prevOrder.forEach((prev, prevIndex) => {
+            // Новый индекс элемента.
+            const newIndex = newOrder.indexOf(prev);
+            // Его нет, элемент удален.
+            if (newIndex < 0) {
+                prev._svg.remove();
+                return;
+            }
+
+            // if(newIndex >= prevIndex)
 
             // Если элемент был последним.
             if (prevIndex === prevOrder.length - 1) {
@@ -214,11 +310,11 @@ export class RendererSVG extends Scene implements EventListenerObject {
                 return;
             }
 
-            const prev2 = prevOrder[prevIndex + 1];
-            const cur2 = newOrder[newIndex + 1];
+            const prevNext = prevOrder[prevIndex + 1];
+            const curNext = newOrder[newIndex + 1];
 
-            if (prev2 === cur2) return;
-            root.insertBefore(prev._svg, cur2._svg);
+            if (prevNext === curNext) return;
+            root.insertBefore(curNext._svg, prevNext._svg.nextElementSibling);
         });
     }
 
