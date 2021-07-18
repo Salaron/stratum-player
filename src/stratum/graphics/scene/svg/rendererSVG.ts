@@ -482,8 +482,8 @@ export class RendererSVG extends Scene implements EventListenerObject {
         this.handlers[type].forEach((h) => h(event));
 
         if (type === "keydown") {
-            //стрелки, Delete не отправляют WM_CHAR, т.к. не проходят TranslateMessage... Хер пойми как она работает.
-            if ((rawKey > 36 && rawKey < 41) || rawKey === 46) return;
+            //стрелки, Delete, Insert не отправляют WM_CHAR, т.к. не проходят TranslateMessage... Хер пойми как она работает.
+            if ((rawKey > 36 && rawKey < 41) || rawKey === 46 || rawKey === 45) return;
 
             const idx = win1251Table.indexOf(evt.key);
             const translatedKey = idx < 0 ? rawKey : idx;
