@@ -136,10 +136,10 @@ export class SimpleWs implements WindowHost {
     }
 
     get width() {
-        return window.innerWidth;
+        return this.root?.clientWidth || window.innerWidth;
     }
     get height() {
-        return window.innerHeight;
+        return this.root?.clientHeight || window.innerHeight;
     }
     append(view: Element, options: ViewContainerOptions): ViewContainerController {
         const container = document.createElement("div");
