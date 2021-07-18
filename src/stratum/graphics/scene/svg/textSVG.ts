@@ -76,15 +76,6 @@ export class TextSVG extends TextElement2D {
             this.bbox = null;
         }
 
-        const ox = this._x - this.scene._offsetX;
-        const oy = this._y - this.scene._offsetY;
-
-        if (ox !== this.prevOx || oy !== this.prevOy) {
-            this.prevOx = ox;
-            this.prevOy = oy;
-            this._svg.setAttribute("transform", `translate(${ox}, ${oy})`);
-        }
-
         // const ox = this._x - this.scene._offsetX;
         // if (ox !== this.prevOx) {
         //     this.prevOx = ox;
@@ -105,10 +96,15 @@ export class TextSVG extends TextElement2D {
             this.prevHeight = h;
             this._svg.setAttribute("height", h.toString());
         }
+        const ox = this._x - this.scene._offsetX;
+        const oy = this._y - this.scene._offsetY;
         const a = this._angle;
-        if (this.prevAngle !== a) {
+
+        if (ox !== this.prevOx || oy !== this.prevOy || this.prevAngle !== a) {
+            this.prevOx = ox;
+            this.prevOy = oy;
             this.prevAngle = a;
-            this._svg.setAttribute("transform", `rotate(${(a * 180) / Math.PI}, ${ox}, ${oy})`);
+            this._svg.setAttribute("transform", `translate(${ox}, ${oy}), rotate(${(a * 180) / Math.PI})`);
         }
     }
 }
