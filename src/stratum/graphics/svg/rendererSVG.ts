@@ -99,11 +99,10 @@ export class RendererSVG extends Scene implements EventListenerObject {
         // }
     }
 
-    private lastElementsVer = -1;
-
-    // private primaryMap = new WeakMap<PrimaryElement, PrimaryElementSVG>();
+    private prevElements = this._elements as readonly SVGOrHTMLChild[];
     private svgOrder: SVGChild[] = [];
     private htmlOrder: HTMLChild[] = [];
+
     private _rect: DOMRect | null = null;
     private prevScale: number = 1;
 
@@ -153,215 +152,6 @@ export class RendererSVG extends Scene implements EventListenerObject {
         RendererSVG.updater.run(RendererSVG.redrawAll);
     }
 
-    // private createOrderHTML(elements: readonly HTMLChild[]): HTMLChild[] {
-    //     let doc: DocumentFragment | null = null;
-    //     const order = elements.map<HTMLChild>((cur) => {
-    //         if (cur._html.parentElement) return cur;
-    //         if (!doc) {
-    //             doc = document.createDocumentFragment();
-    //         }
-    //         this.htmlOrder.push(cur);
-    //         doc.appendChild(cur._html);
-    //         return cur;
-    //     });
-    //     if (doc) this.view.appendChild(doc);
-    //     return order;
-    // }
-
-    // private static reoderSVG2(root: SVGSVGElement, prevOrder: readonly SVGChild[], curOrder: readonly SVGChild[]): void {
-    //     // const minlen = Math.min(prevOrder.length, newOrder.length);
-    //     // for(let i = 0; i < minlen; ++i) {
-    //     //     const cur = i < newOrder.length ? newOrder[i] : null;
-    //     //     const prev = i < prevOrder.length ? prevOrder[i] : null;
-    //     //     if(cur === prev) return;
-
-    //     //     if(!cur?._svg)
-    //     // }
-
-    //     for (let i = curOrder.length - 1; i >= 0; --i) {
-    //         const cur = curOrder[i];
-    //         const prev = i < prevOrder.length ? prevOrder[i] : null;
-    //         if (cur === prev) return;
-
-    //         if (!cur._svg.parentElement) {
-    //             const where = i === curOrder.length - 1 ? null : curOrder[i + 1]._svg;
-    //             root.insertBefore(cur._svg, where);
-    //             continue;
-    //         }
-
-    //         const newIndex = prevOrder.indexOf(cur);
-    //         if (newIndex < 0) throw Error();
-
-    //         // if(!cur?._svg)
-    //     }
-    // }
-
-    private static reoderSVG(root: SVGSVGElement, prevOrder: SVGChild[], newOrder: SVGChild[]): void {
-        if (newOrder.length > prevOrder.length) throw Error();
-
-        // const del = new Set(prevOrder);
-        // let children = Array.from(root.children);
-
-        // let idx = 0;
-        // newOrder.forEach((e) => {
-        //     del.delete(e);
-        //     if (children[idx] === e._svg) {
-        //         ++idx;
-        //         return;
-        //     }
-        //     const realIdx = children.indexOf(e._svg);
-        //     if (realIdx < 0) throw Error("wtf");
-
-        //     if (realIdx < idx) {
-        //         const nxt = children[realIdx + 1];
-        //         root.insertBefore(e._svg, nxt);
-        //         children = Array.from(root.children);
-        //     }
-        //     idx = realIdx + 1;
-        // });
-
-        // if (del.size > 0) throw Error();
-        // return;
-
-        // newOrder.forEach((e, index) => {
-        //     del.delete(e);
-        //     const idx = children.indexOf(e._svg);
-        //     if(idx < 0) {
-        //         // вставить элемент
-        //         throw Error();
-        //     }
-        //     if(idx > index) {
-
-        //     }
-        // });
-        // console.log(prevOrder.map((o) => o.handle));
-        // console.log(newOrder.map((o) => o.handle));
-        // root.append(...newOrder.map((o) => o._svg));
-        // return;
-
-        prevOrder.forEach((prev, prevIndex) => {
-            // Новый индекс элемента.
-            const newIndex = newOrder.indexOf(prev);
-            // Его нет, элемент удален.
-            if (newIndex < 0) {
-                prev._svg.remove();
-                return;
-            }
-
-            // Если элемент был первым
-            if (prevIndex === 0) {
-                // Если элемент так и остался первым, ничего не делаем.
-                if (newIndex === 0) return;
-                // Если же нет, переставляем на нужное место.
-                // console.log("here");
-                const curPrev = newOrder[newIndex - 1];
-                // root.insertBefore(curPrev._svg, prev._svg.nextElementSibling);
-                root.insertBefore(prev._svg, curPrev._svg);
-                return;
-            }
-
-            // // Если элемент был последним.
-            // if (prevIndex === prevOrder.length - 1) {
-            //     // Если элемент так и остался последним, ничего не делаем.
-            //     if (newIndex === newOrder.length - 1) return;
-            //     // Если же нет, переставляем на нужное место.
-            //     root.insertBefore(prev._svg, newOrder[newIndex + 1]._svg);
-            //     return;
-            // }
-            // // Элемент не был последим.
-
-            // Элемент не был первым.
-
-            // Элемент стал первым, перемещаем в начало.
-            if (newIndex === 0) {
-                root.insertBefore(prev._svg, root.firstElementChild);
-                return;
-            }
-
-            // // Элемент стал последним, перемещаем в конец.
-            // if (newIndex === newOrder.length - 1) {
-            //     root.appendChild(prev._svg);
-            //     return;
-            // }
-
-            const prevPrev = prevOrder[prevIndex - 1];
-            const curPrev = newOrder[newIndex - 1];
-
-            if (prevPrev === curPrev) return;
-            root.insertBefore(curPrev._svg, prev._svg);
-            // root.insertBefore(prev._svg, curNext._svg);
-        });
-        return;
-
-        prevOrder.forEach((prev, prevIndex) => {
-            // Новый индекс элемента.
-            const newIndex = newOrder.indexOf(prev);
-            // Его нет, элемент удален.
-            if (newIndex < 0) {
-                prev._svg.remove();
-                return;
-            }
-
-            // if(newIndex >= prevIndex)
-
-            // Если элемент был последним.
-            if (prevIndex === prevOrder.length - 1) {
-                // Если элемент так и остался последним, ничего не делаем.
-                if (newIndex === newOrder.length - 1) return;
-                // Если же нет, переставляем на нужное место.
-                root.insertBefore(prev._svg, newOrder[newIndex + 1]._svg);
-                return;
-            }
-            // Элемент не был последим.
-
-            // Элемент стал последним, перемещаем в конец.
-            if (newIndex === newOrder.length - 1) {
-                root.appendChild(prev._svg);
-                return;
-            }
-
-            const prevNext = prevOrder[prevIndex + 1];
-            const curNext = newOrder[newIndex + 1];
-
-            if (prevNext === curNext) return;
-            root.insertBefore(curNext._svg, prevNext._svg.nextElementSibling);
-        });
-    }
-
-    private static reoderHTML(root: HTMLDivElement, prevOrder: HTMLChild[], newOrder: HTMLChild[]): void {
-        prevOrder.forEach((prev, prevIndex) => {
-            // Новый индекс элемента.
-            const newIndex = newOrder.indexOf(prev);
-            // Его нет, элемент удален.
-            if (newIndex < 0) {
-                prev._html.remove();
-                return;
-            }
-
-            // Если элемент был последним.
-            if (prevIndex === prevOrder.length - 1) {
-                // Если элемент так и остался последним, ничего не делаем.
-                if (newIndex === newOrder.length - 1) return;
-                // Если же нет, переставляем на нужное место.
-                root.insertBefore(prev._html, newOrder[newIndex + 1]._html);
-                return;
-            }
-            // Элемент не был последим.
-
-            // Элемент стал последним, перемещаем в конец.
-            if (newIndex === newOrder.length - 1) {
-                root.appendChild(prev._html);
-                return;
-            }
-
-            const prev2 = prevOrder[prevIndex + 1];
-            const cur2 = newOrder[newIndex + 1];
-
-            if (prev2 === cur2) return;
-            root.insertBefore(prev._html, cur2._html);
-        });
-    }
-
     private rect(): DOMRect {
         if (!this._rect) {
             this._rect = this.view.getBoundingClientRect();
@@ -370,7 +160,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
     }
 
     private render(): this {
-        const els = this._elements as SVGOrHTMLChild[];
+        const elements = this._elements as readonly SVGOrHTMLChild[];
 
         const scale = this._scale;
         if (this.prevScale !== scale) {
@@ -384,48 +174,58 @@ export class RendererSVG extends Scene implements EventListenerObject {
             this.rootHTML.style.setProperty("height", `${100 / scale}%`);
         }
 
-        if (this.lastElementsVer !== this._elementsVer) {
-            this.lastElementsVer = this._elementsVer;
+        const prevElements = this.prevElements;
 
-            let doc: DocumentFragment | null = null;
-            let doc2: DocumentFragment | null = null;
-
+        if (prevElements !== elements) {
             const svgs: SVGChild[] = [];
             const htmls: InputSVG[] = [];
 
-            els.forEach((e) => {
+            elements.forEach((e) => {
                 if (e._svg) {
                     svgs.push(e);
-                    if (e._svg.parentElement) return;
-                    if (!doc) {
-                        doc = document.createDocumentFragment();
-                    }
-                    this.svgOrder.push(e);
-                    doc.appendChild(e._svg);
                 } else {
                     htmls.push(e);
-                    if (e._html.parentElement) return;
-                    if (!doc2) {
-                        doc2 = document.createDocumentFragment();
-                    }
-                    this.htmlOrder.push(e);
-                    doc2.appendChild(e._html);
                 }
             });
-            if (doc) this.rootSVG.appendChild(doc);
-            if (doc2) this.rootHTML.appendChild(doc2);
 
-            // const htmlOrder = this.createOrderHTML(htmls);
-
-            RendererSVG.reoderSVG(this.rootSVG, this.svgOrder, svgs);
+            if (this.svgOrder.length > 0) {
+                RendererSVG.reoderNRender(this.rootSVG, svgs, this.svgOrder);
+            } else {
+                this.rootSVG.append(...svgs.map((s) => s._svg));
+            }
             this.svgOrder = svgs;
-            RendererSVG.reoderHTML(this.rootHTML, this.htmlOrder, htmls);
-            this.htmlOrder = htmls;
-        }
 
-        els.forEach((e) => e.render());
+            if (this.htmlOrder.length > 0) {
+                RendererSVG.reoderNRender(this.rootHTML, htmls, this.htmlOrder);
+            } else {
+                this.rootHTML.append(...htmls.map((s) => s._html));
+            }
+            this.htmlOrder = htmls;
+
+            this.prevElements = elements;
+        } else {
+            elements.forEach((e) => e.render());
+        }
         this._rect = null;
         return this;
+    }
+
+    private static reoderNRender(root: Element, newOrder: readonly SVGOrHTMLChild[], prevOrder: readonly SVGOrHTMLChild[]): void {
+        let idx = 0;
+        let previousElem: Element | null = null;
+        const del = new Set(prevOrder);
+        newOrder.forEach((e) => {
+            del.delete(e);
+            if (idx < prevOrder.length && e === prevOrder[idx]) {
+                ++idx;
+            } else {
+                const where = previousElem ? previousElem.nextElementSibling : root.firstElementChild;
+                root.insertBefore(e._svg || e._html, where);
+            }
+            previousElem = e._svg || e._html;
+            e.render();
+        });
+        del.forEach((e) => (e._svg || e._html).remove());
     }
 
     elementAtPoint(x: number, y: number): SVGChild | null {

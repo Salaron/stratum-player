@@ -59,7 +59,6 @@ export abstract class Scene {
     static readonly keyState = new Uint8Array(256);
 
     _elements: readonly PrimaryElement[] = [];
-    _elementsVer: number = 0;
 
     _offsetX: number;
     _offsetY: number;
@@ -102,7 +101,6 @@ export abstract class Scene {
 
     setElements(elements: readonly PrimaryElement[]): this {
         this._elements = elements;
-        ++this._elementsVer;
         this._dirty = true;
         return this;
     }
