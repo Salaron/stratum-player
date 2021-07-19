@@ -1,5 +1,6 @@
 import { Enviroment } from "stratum/enviroment";
-import { EnviromentHandlers, ProjectResources } from "stratum/enviroment/enviroment";
+import { EnviromentHandlers } from "stratum/enviroment/enviroment";
+import { loadProject, ProjectResources } from "stratum/enviroment/projectResources";
 import { ExecutorCallback, FastestExecutor, SmoothExecutor } from "stratum/helpers/computers";
 import { AddDirInfo, PathInfo, Player, PlayerOptions, WindowHost } from "stratum/stratum";
 import { SimpleWs } from "./ws";
@@ -11,7 +12,7 @@ export class RealPlayer implements Player {
      * @param dirInfo - дополнительная информация (пути к системным библиотекам).
      */
     static async create(prjFile: PathInfo, dirInfo?: AddDirInfo[]): Promise<Player> {
-        const res = await Enviroment.loadProject(prjFile, dirInfo);
+        const res = await loadProject(prjFile, dirInfo);
         return new RealPlayer(res);
     }
 

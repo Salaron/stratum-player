@@ -4,8 +4,6 @@ import { EventSubscriber, NumBool } from "stratum/common/types";
 import { VarType } from "stratum/common/varType";
 import { installContextFunctions } from "stratum/compiler";
 import { SceneElement, SceneWrapper } from "stratum/enviroment/sceneWrapper";
-import { readPrjFile } from "stratum/fileFormats/prj";
-import { readSttFile, VariableSet } from "stratum/fileFormats/stt";
 import { Hyperbase, VectorDrawing, WindowStyle } from "stratum/fileFormats/vdr";
 import { GroupElement2D } from "stratum/graphics/elements/groupElement2d";
 import { PrimaryElement, Scene, SceneInputEvent, SceneKeyboardEvent, ScenePointerEvent } from "stratum/graphics/scene";
@@ -15,7 +13,6 @@ import { ImageTool } from "stratum/graphics/tools/imageTool";
 import { PenTool } from "stratum/graphics/tools/penTool";
 import { StringTool, StringToolArgs } from "stratum/graphics/tools/stringTool";
 import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/tools/textTool";
-import { BinaryReader } from "stratum/helpers/binaryReader";
 import { HandleMap } from "stratum/helpers/handleMap";
 import { invertMatrix } from "stratum/helpers/invertMatrix";
 import { getDirectory } from "stratum/helpers/pathOperations";
@@ -26,8 +23,7 @@ import { win1251Table } from "stratum/helpers/win1251";
 import { options } from "stratum/options";
 import { Project, Schema } from "stratum/project";
 import { EnviromentFunctions } from "stratum/project/enviromentFunctions";
-import { ProjectArgs } from "stratum/project/project";
-import { AddDirInfo, CursorRequestHandler, ErrorHandler, PathInfo, ShellHandler, WindowHost } from "stratum/stratum";
+import { CursorRequestHandler, ErrorHandler, PathInfo, ShellHandler, WindowHost } from "stratum/stratum";
 import { EnvArray, EnvArraySortingAlgo } from "./components/envArray";
 import { EnvMatrix } from "./components/envMatrix";
 import { EnvStream } from "./components/envStream";
@@ -39,20 +35,12 @@ import { deleteGroupElements, searchInGroup, switchGroupElementsVisible } from "
 import { insertVDR } from "./helpers/insertVDR";
 import { readFile } from "./helpers/readFile";
 import { LazyLibrary } from "./lazyLibrary";
+import { loadProjectResources, ProjectResources } from "./projectResources";
 import { graphicsImpl } from "./toolsAndElementsConstructors";
 
 interface EnviromentCaptureTarget {
     scene: Scene;
     receiver: EventSubscriber;
-}
-
-export interface ProjectResources extends ProjectArgs {
-    classes: LazyLibrary<number>;
-}
-
-interface LoadArgs<T> {
-    lib: LazyLibrary<T>;
-    id?: T;
 }
 
 export interface EnviromentHandlers {
@@ -64,59 +52,6 @@ export interface EnviromentHandlers {
 
 export class Enviroment implements EnviromentFunctions {
     private static readonly startupTime = new Date().getTime();
-    /**
-     * Загружает все ресурсы указанного проекта.
-     * @param prjFile - путь к файлу проекта.
-     * @param dirInfo - дополнительная информация (пути к системным библиотекам).
-     */
-    static async loadProject(prjFile: PathInfo, dirInfo?: AddDirInfo[]): Promise<ProjectResources> {
-        const addDirs = dirInfo?.filter((d) => !d.type || d.type === "library").map((d) => d.dir);
-        const lib = new LazyLibrary<number>();
-        return Enviroment.loadProjectResources(prjFile, { lib }, addDirs);
-    }
-    private static async loadProjectResources(prjFile: PathInfo, args: LoadArgs<number>, addDirs?: PathInfo[]): Promise<ProjectResources> {
-        const workDir = prjFile.resolve("..");
-        const sttFile = workDir.resolve("_preload.stt");
-        let [prjBuf, sttBuf] = await workDir.fs.arraybuffers([prjFile, sttFile]);
-        if (!prjBuf) throw Error(`Файл проекта ${prjFile} не найден`);
-        options.log(`Открываем проект ${prjFile.toString()}`);
-
-        // Файл проекта.
-        const prjInfo = readPrjFile(new BinaryReader(prjBuf, prjFile.toString()));
-
-        const newPreloadFile = prjInfo.settings?.preloadFile;
-        if (newPreloadFile) {
-            sttBuf = await workDir.fs.arraybuffer(workDir.resolve(newPreloadFile));
-        }
-
-        // Файл состояния.
-        let stt: VariableSet | null = null;
-        if (sttBuf) {
-            try {
-                stt = readSttFile(new BinaryReader(sttBuf, sttFile.toString()));
-            } catch (e) {
-                console.warn(e);
-            }
-        }
-
-        // Пути поиска имиджей, которые через запятую прописаны в настройках проекта.
-        const classDirs: PathInfo[] = [workDir];
-        const settingsPaths = prjInfo.settings?.classSearchPaths;
-        if (settingsPaths) {
-            //prettier-ignore
-            const pathsSeparated = settingsPaths.split(",").map((s) => s.trim()).filter((s) => s);
-            for (const localPath of pathsSeparated) {
-                classDirs.push(workDir.resolve(localPath));
-            }
-        }
-        const dirs = addDirs ? classDirs.concat(addDirs) : classDirs;
-
-        // Имиджи.
-        const classes = args.lib;
-        // await new Promise((res) => setTimeout(res, 2000));
-        await classes.add(workDir.fs, dirs, /*!prjInfo.settings?.notRecursive*/ true, args.id);
-        return { classes: classes, dir: workDir, prjInfo, stt, filepath: prjFile.toString() };
-    }
 
     private windows = new Map<string, SceneWrapper>();
     private scenes = new Map<number, SceneWrapper>();
@@ -143,10 +78,11 @@ export class Enviroment implements EnviromentFunctions {
         this.classes = args.classes;
     }
 
-    private sessionId(): number {
+    // Используются для пометки загружаемых классов, чтобы выгрузить их при закрытии проекта.
+    private curProjectID(): number {
         return this.projects.length;
     }
-    private nextSessionId(): number {
+    private nextProjectID(): number {
         return this.projects.length + 1;
     }
 
@@ -164,7 +100,7 @@ export class Enviroment implements EnviromentFunctions {
         // Проект не работает и при этом нет ожидающего проекта.
         if (prj.shouldClose() === true /*&& !this.loading*/) {
             options.log(`Закрывается проект ${prj.filepath}`);
-            this.classes.clear(this.sessionId());
+            this.classes.clear(this.curProjectID());
             this.closeProjectWindows(prj);
             this.projects.pop();
             if (this.projects.length === 0) {
@@ -821,7 +757,7 @@ export class Enviroment implements EnviromentFunctions {
 
         document.body.style.cursor = "wait";
         try {
-            const data = await Enviroment.loadProjectResources(prjFile, { id: this.nextSessionId(), lib: this.classes });
+            const data = await loadProjectResources(prjFile, this.classes, { id: this.nextProjectID() });
             if (this._shouldQuit) return;
             this.projects.push(new Project(this, data));
         } catch (e) {
