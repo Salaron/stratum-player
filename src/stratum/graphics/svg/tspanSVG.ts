@@ -3,6 +3,30 @@ import { TextToolPartTool } from "../tools/textToolPartTool";
 import { FontSVG } from "./fontSVG";
 import { TextSVG } from "./textSVG";
 
+// export function createFilter(color: string, id: string) {
+//     const node1 = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+//     node1.setAttribute("in", "bg");
+//     const node2 = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+//     node2.setAttribute("in", "SourceGraphic");
+
+//     const femerge = document.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+//     femerge.append(node1, node2);
+
+//     const flood = document.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+//     flood.setAttribute("flood-color", color);
+//     flood.setAttribute("result", "bg");
+
+//     const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+//     filter.setAttribute("x", "0");
+//     filter.setAttribute("y", "0");
+//     filter.setAttribute("width", "1");
+//     filter.setAttribute("height", "1");
+//     filter.setAttribute("id", id);
+
+//     filter.append(flood, femerge);
+//     return filter;
+// }
+
 function createTspan() {
     const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
     // tspan.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
@@ -94,12 +118,28 @@ export class TSpanSVG {
         const fg = this.part.fgColor();
         if (this._prevFg !== fg) {
             this._prevFg = fg;
-            this._spans.forEach((s) => s.setAttribute("fill", colorrefToCSSColor(fg)));
+            const col = colorrefToCSSColor(fg);
+            this._spans.forEach((s) => s.setAttribute("fill", col));
         }
 
         const bg = this.part.bgColor();
         if (this._prevBg !== bg) {
             this._prevBg = bg;
+            const col = colorrefToCSSColor(bg);
+            if (col === "transparent") {
+                this._spans.forEach((s) => s.removeAttribute("filter"));
+            } else {
+                // const defs = (this.owner.scene as RendererSVG)._defs;
+                // const id = `bg_${bg}`;
+                // this._spans.forEach((s) => s.setAttribute("filter", `drop-shadow(0px 0px 6px ${col})`));
+                // let filter = defs.querySelector(`#${id}`);
+                // if (!filter) {
+                //     filter = createFilter(col, id);
+                //     defs.appendChild(filter);
+                // }
+                this._spans.forEach((s) => s.setAttribute("filter", `drop-shadow(0px 0px 6px ${col})`));
+                // this._spans.forEach((s) => s.setAttribute("filter", `url(#${id})`));
+            }
         }
         return shapeChanged;
     }
