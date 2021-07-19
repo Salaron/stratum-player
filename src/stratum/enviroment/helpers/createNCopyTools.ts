@@ -1,12 +1,12 @@
 import { SceneWrapper } from "stratum/enviroment/sceneWrapper";
 import { BrushToolParams, FontToolParams, ImageToolParams, PenToolParams, StringToolParams, TextToolParams } from "stratum/fileFormats/vdr";
-import { Scene } from "stratum/graphics/scene/scene";
-import { BrushTool, BrushToolArgs } from "stratum/graphics/scene/tools/brushTool";
-import { FontTool, FontToolArgs } from "stratum/graphics/scene/tools/fontTool";
-import { ImageTool, ImageToolArgs } from "stratum/graphics/scene/tools/imageTool";
-import { PenTool, PenToolArgs } from "stratum/graphics/scene/tools/penTool";
-import { StringTool, StringToolArgs } from "stratum/graphics/scene/tools/stringTool";
-import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/scene/tools/textTool";
+import { Scene } from "stratum/graphics/scene";
+import { BrushTool, BrushToolArgs } from "stratum/graphics/tools/brushTool";
+import { FontTool, FontToolArgs } from "stratum/graphics/tools/fontTool";
+import { ImageTool, ImageToolArgs } from "stratum/graphics/tools/imageTool";
+import { PenTool, PenToolArgs } from "stratum/graphics/tools/penTool";
+import { StringTool, StringToolArgs } from "stratum/graphics/tools/stringTool";
+import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/tools/textTool";
 import { HandleMap } from "stratum/helpers/handleMap";
 import { graphicsImpl } from "../toolsAndElementsConstructors";
 

@@ -1,6 +1,6 @@
 import { NumBool } from "stratum/common/types";
 
-export interface NeoMatrixArgs {
+export interface EnvMatrixArgs {
     minX: number;
     minY: number;
     rows: number;
@@ -8,14 +8,14 @@ export interface NeoMatrixArgs {
     data?: number[];
 }
 
-export class NeoMatrix {
+export class EnvMatrix {
     private minX: number;
     private minY: number;
     private cols: number;
     private rows: number;
     private data: Float64Array;
 
-    constructor(args: NeoMatrixArgs) {
+    constructor(args: EnvMatrixArgs) {
         this.minX = args.minX;
         this.minY = args.minY;
         this.rows = args.rows;

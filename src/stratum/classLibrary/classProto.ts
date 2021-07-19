@@ -74,13 +74,11 @@ export class ClassProto {
         if (!children) return (this._scheme = vdr);
 
         const merger = new VdrMerger(vdr);
-        for (let i = 0; i < children.length; ++i) {
-            const child = children[i];
-
+        children.forEach((child) => {
             const childProto = this.lib.get(child.classname);
             if (!childProto) {
                 console.warn(`Подимидж ${child.classname} #${child.handle} не найден на схеме ${this.name}`);
-                continue;
+                return;
             }
 
             const icon = childProto.iconFile;
@@ -92,7 +90,7 @@ export class ClassProto {
                 const img = childProto.image();
                 if (img) merger.insertChildImage(child.handle, img);
             }
-        }
+        });
         return (this._scheme = merger.result());
     }
 

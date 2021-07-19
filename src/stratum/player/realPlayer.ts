@@ -1,6 +1,6 @@
-import { ExecutorCallback, FastestExecutor, SmoothExecutor } from "stratum/common/computers";
 import { Enviroment } from "stratum/enviroment";
 import { EnviromentHandlers, ProjectResources } from "stratum/enviroment/enviroment";
+import { ExecutorCallback, FastestExecutor, SmoothExecutor } from "stratum/helpers/computers";
 import { AddDirInfo, PathInfo, Player, PlayerOptions, WindowHost } from "stratum/stratum";
 import { SimpleWs } from "./ws";
 

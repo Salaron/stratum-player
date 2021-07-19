@@ -1,5 +1,5 @@
 import { VectorDrawing } from "stratum/fileFormats/vdr";
-import { GroupElement2D } from "stratum/graphics/scene/elements/groupElement2d";
+import { GroupElement2D } from "stratum/graphics/elements/groupElement2d";
 import { HandleMap } from "stratum/helpers/handleMap";
 import { SceneElement, SceneWrapper } from "../sceneWrapper";
 import { createElementOrder, createElements } from "./createNCopyObjects";

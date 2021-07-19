@@ -2,6 +2,9 @@ import { Point2D } from "stratum/helpers/types";
 import { ViewContainerController, ViewContainerOptions } from "stratum/stratum";
 import { SceneWrapper } from "./sceneWrapper";
 
+/**
+ * Реализация "подокна".
+ */
 export class FrameController implements ViewContainerController {
     private lastX: number;
     private lastY: number;

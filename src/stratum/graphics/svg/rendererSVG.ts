@@ -1,4 +1,4 @@
-import { SmoothExecutor } from "stratum/common/computers";
+import { SmoothExecutor } from "stratum/helpers/computers";
 import { eventCodeToWinDigit } from "stratum/helpers/keyboardEventKeyMap";
 import { win1251Table } from "stratum/helpers/win1251";
 import { InputElement2D } from "../elements/inputElement2d";

@@ -7,14 +7,14 @@ import { SceneElement, SceneWrapper } from "stratum/enviroment/sceneWrapper";
 import { readPrjFile } from "stratum/fileFormats/prj";
 import { readSttFile, VariableSet } from "stratum/fileFormats/stt";
 import { Hyperbase, VectorDrawing, WindowStyle } from "stratum/fileFormats/vdr";
-import { GroupElement2D } from "stratum/graphics/scene/elements/groupElement2d";
-import { PrimaryElement, Scene, SceneInputEvent, SceneKeyboardEvent, ScenePointerEvent } from "stratum/graphics/scene/scene";
-import { BrushTool, BrushToolArgs } from "stratum/graphics/scene/tools/brushTool";
-import { FontTool, FontToolArgs } from "stratum/graphics/scene/tools/fontTool";
-import { ImageTool } from "stratum/graphics/scene/tools/imageTool";
-import { PenTool } from "stratum/graphics/scene/tools/penTool";
-import { StringTool, StringToolArgs } from "stratum/graphics/scene/tools/stringTool";
-import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/scene/tools/textTool";
+import { GroupElement2D } from "stratum/graphics/elements/groupElement2d";
+import { PrimaryElement, Scene, SceneInputEvent, SceneKeyboardEvent, ScenePointerEvent } from "stratum/graphics/scene";
+import { BrushTool, BrushToolArgs } from "stratum/graphics/tools/brushTool";
+import { FontTool, FontToolArgs } from "stratum/graphics/tools/fontTool";
+import { ImageTool } from "stratum/graphics/tools/imageTool";
+import { PenTool } from "stratum/graphics/tools/penTool";
+import { StringTool, StringToolArgs } from "stratum/graphics/tools/stringTool";
+import { TextTool, TextToolArgs, TextToolPartData } from "stratum/graphics/tools/textTool";
 import { BinaryReader } from "stratum/helpers/binaryReader";
 import { HandleMap } from "stratum/helpers/handleMap";
 import { invertMatrix } from "stratum/helpers/invertMatrix";
@@ -28,17 +28,17 @@ import { Project, Schema } from "stratum/project";
 import { EnviromentFunctions } from "stratum/project/enviromentFunctions";
 import { ProjectArgs } from "stratum/project/project";
 import { AddDirInfo, CursorRequestHandler, ErrorHandler, PathInfo, ShellHandler, WindowHost } from "stratum/stratum";
-import { EnvArray, EnvArraySortingAlgo } from "./envArray";
-import { EnvStream } from "./envStream";
+import { EnvArray, EnvArraySortingAlgo } from "./components/envArray";
+import { EnvMatrix } from "./components/envMatrix";
+import { EnvStream } from "./components/envStream";
 import { FrameController } from "./frameController";
 import { copyElement, createElementOrder, createElements } from "./helpers/createNCopyObjects";
 import { createBrushTools, createFontTools, createImageTools, createPenTools, createStringTools, createTextTools } from "./helpers/createNCopyTools";
 import { EnviromentWindowSettings, parseEnviromentWindowSettings } from "./helpers/enviromentWindowSettings";
 import { deleteGroupElements, searchInGroup, switchGroupElementsVisible } from "./helpers/groupOperations";
 import { insertVDR } from "./helpers/insertVDR";
+import { readFile } from "./helpers/readFile";
 import { LazyLibrary } from "./lazyLibrary";
-import { NeoMatrix } from "./neoMatrix";
-import { readFile } from "./readFile";
 import { graphicsImpl } from "./toolsAndElementsConstructors";
 
 interface EnviromentCaptureTarget {
@@ -118,22 +118,20 @@ export class Enviroment implements EnviromentFunctions {
         return { classes: classes, dir: workDir, prjInfo, stt, filepath: prjFile.toString() };
     }
 
-    private readonly projects: Project[];
-
-    private _shouldQuit: boolean = false;
-    private _isWaiting: boolean = false;
-    private loading: Promise<void> | null = null;
-
     private windows = new Map<string, SceneWrapper>();
     private scenes = new Map<number, SceneWrapper>();
     private openedPopups = new Set<SceneWrapper>();
-    private streams = new Map<number, EnvStream>();
-    private matrices = new Map<number, NeoMatrix>();
     private arrays = new Map<number, EnvArray>();
-    private captureTarget: EnviromentCaptureTarget | null = null;
+    private matrices = new Map<number, EnvMatrix>();
+    private streams = new Map<number, EnvStream>();
+    private readonly projects: Project[];
 
     private classes: LazyLibrary<number>;
 
+    private captureTarget: EnviromentCaptureTarget | null = null;
+    private _shouldQuit: boolean = false;
+    private _isWaiting: boolean = false;
+    private loading: Promise<void> | null = null;
     private lastPrimary: number = 0;
     private copied: SceneElement | null = null;
 
@@ -516,7 +514,7 @@ export class Enviroment implements EnviromentFunctions {
         return readFile(dir.resolve(fileName), "mat")
             .then((mat) => {
                 const handle = q === 0 ? HandleMap.getFreeNegativeHandle(this.matrices) : q;
-                this.matrices.set(handle, new NeoMatrix(mat));
+                this.matrices.set(handle, new EnvMatrix(mat));
                 return handle;
             })
             .catch(() => 0);
@@ -2779,7 +2777,7 @@ export class Enviroment implements EnviromentFunctions {
         if (rows <= 0 || cols <= 0) return 0;
 
         const handle = q === 0 ? HandleMap.getFreeNegativeHandle(this.matrices) : q;
-        this.matrices.set(handle, new NeoMatrix({ rows, cols, minX, minY }));
+        this.matrices.set(handle, new EnvMatrix({ rows, cols, minX, minY }));
         return handle;
     }
     stratum_mDelete(q: number, flag: number): NumBool {

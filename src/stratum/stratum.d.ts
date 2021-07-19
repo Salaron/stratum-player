@@ -239,6 +239,9 @@ export interface ViewContainerResizedCallback {
     (w: number, h: number): void;
 }
 
+/**
+ * Интерфейс управления окном.
+ */
 export interface ViewContainerController {
     /**
      * Позиция окна по X.
