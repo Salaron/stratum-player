@@ -137,4 +137,6 @@ export abstract class Scene {
     abstract beforeRemove(): void;
 
     abstract elementAtPoint(x: number, y: number): PrimaryElement | null;
+
+    abstract toDataURL(x: number, y: number, w: number, h: number): [string, string];
 }

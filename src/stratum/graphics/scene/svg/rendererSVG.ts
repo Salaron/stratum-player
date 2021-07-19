@@ -559,6 +559,26 @@ export class RendererSVG extends Scene implements EventListenerObject {
         };
         this.handlers.inputState.forEach((h) => h(event));
     }
+
+    toDataURL(x: number, y: number, w: number, h: number): [string, string] {
+        //get svg source.
+        let source = new XMLSerializer().serializeToString(this.rootSVG);
+
+        //add name spaces.
+        if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+            source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        if (!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
+            source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+        }
+        //add xml declaration
+        source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+
+        //convert svg source to URI data scheme.
+        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+
+        return ["svg", url];
+    }
 }
 
 window.addEventListener("pointerdown", RendererSVG.handlePointer);

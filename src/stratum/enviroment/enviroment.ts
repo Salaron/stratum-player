@@ -9,7 +9,6 @@ import { readSttFile, VariableSet } from "stratum/fileFormats/stt";
 import { Hyperbase, VectorDrawing, WindowStyle } from "stratum/fileFormats/vdr";
 import { GroupElement2D } from "stratum/graphics/scene/elements/groupElement2d";
 import { PrimaryElement, Scene, SceneInputEvent, SceneKeyboardEvent, ScenePointerEvent } from "stratum/graphics/scene/scene";
-import { RendererSVG } from "stratum/graphics/scene/svg/rendererSVG";
 import { BrushTool, BrushToolArgs } from "stratum/graphics/scene/tools/brushTool";
 import { FontTool, FontToolArgs } from "stratum/graphics/scene/tools/fontTool";
 import { ImageTool } from "stratum/graphics/scene/tools/imageTool";
@@ -1365,36 +1364,16 @@ export class Enviroment implements EnviromentFunctions {
     // Пространства
     //
     stratum_saveRectArea2d(hspace: number, filename: string, /*bits*/ _: number, x: number, y: number, width: number, height: number): NumBool {
-        const w = this.scenes.get(hspace);
-        if (!w) return 0;
-
-        const svg = (w.scene as RendererSVG).rootSVG;
-
-        //get svg source.
-        const serializer = new XMLSerializer();
-        let source = serializer.serializeToString(svg);
-        //add name spaces.
-        if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
-            source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
-        }
-        if (!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
-            source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
-        }
-
-        //add xml declaration
-        source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
-
-        //convert svg source to URI data scheme.
-        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
-
-        // const url = w.toDataURL(x, y, width, height);
-        // if (!url) return 0;
+        const res = this.scenes.get(hspace)?.scene.toDataURL(x, y, width, height);
+        if (!res) return 0;
+        const [ext, url] = res;
 
         const norm = filename.replace("\\", "/");
         const realName = norm.substring(norm.lastIndexOf("/") + 1, norm.lastIndexOf("."));
+
         const element = document.createElement("a");
         element.setAttribute("href", url);
-        element.setAttribute("download", `${realName || "Screenshot"}.svg`);
+        element.setAttribute("download", `${realName || "Screenshot"}.${ext}`);
         element.style.display = "none";
         document.body.appendChild(element);
         element.click();
