@@ -370,10 +370,31 @@ export interface PlayerConstructor {
     (prjFile: PathInfo, dirInfo?: AddDirInfo[]): Promise<Player>;
 }
 
+export interface ZipFSAddDirInfo {
+    /**
+     * Путь директории.
+     */
+    dir: string;
+    /**
+     * Тип директории ("library" - библиотека имиджей, "temp" - временная директория). По умолчанию - library.
+     */
+    type?: "library" | "temp";
+}
+
+export interface ZipFSPlayerOptions {
+    path: string;
+    dirInfo?: ZipFSAddDirInfo[];
+}
+
 export interface ZipFS extends FileSystem {
     merge(fs: ZipFS): this;
     files(regexp?: RegExp): IterableIterator<PathInfo>;
     path(path: string): PathInfo;
+    /**
+     * Возвращает первый найденный .prj файл. Файл должен оканчиваться на .prj/.spj.
+     * @param path часть пути к файлу для поиска.
+     */
+    prj(path?: string): PathInfo | null;
 }
 
 export type ZipSource = File | Blob | ArrayBuffer | Uint8Array;

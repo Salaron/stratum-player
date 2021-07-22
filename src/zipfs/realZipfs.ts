@@ -46,6 +46,22 @@ export class RealZipFS implements ZipFS {
         return this;
     }
 
+    prj(path?: string): PathInfo | null {
+        const iter = this.files(/.+\.(prj|spj)$/i);
+        if (path) {
+            const norm = this.path(path) //Нормализуем путь { vol:C, parts:[s, MaIn] }
+                .parts.join("\\") // s\MaIn
+                .toUpperCase(); // [S\MAIN]
+
+            for (const file of iter) {
+                if (file.toString().toUpperCase().includes(norm)) return file;
+            }
+            return null;
+        }
+        const srch = iter.next();
+        return srch.done ? null : srch.value;
+    }
+
     *files(regexp?: RegExp): IterableIterator<PathInfo> {
         for (const disk of this.disks.values()) yield* disk.files(regexp, true);
     }
