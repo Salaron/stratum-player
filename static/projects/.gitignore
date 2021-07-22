@@ -1,0 +1,7 @@
+*/
+/*
+# But not these files...
+!.gitignore
+!test_*
+!balls.zip
+!other/
