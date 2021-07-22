@@ -3,14 +3,32 @@
  */
 
 export interface PathInfo {
+    /**
+     * Экземпляр файловой системы, в которой находится данный путь.
+     */
     readonly fs: FileSystem;
+    /**
+     * Имя диска.
+     */
     readonly vol: string;
+    /**
+     * Части пути без slash-символов.
+     */
     readonly parts: ReadonlyArray<string>;
+    /**
+     * Разрешает файл относительно текущего пути.
+     */
     resolve(path: string): PathInfo;
+    /**
+     * Возвращает строковое представление пути (используются слэши в стиле Windows).
+     */
     toString(): string;
 }
 
 export interface ReadWriteFile {
+    /**
+     * Возвращает содержимое файла.
+     */
     read(): Promise<ArrayBuffer | ArrayBufferView | null>;
     /**
      * Заполняет существуюший файл содержимым.
@@ -161,11 +179,11 @@ export interface Player {
      */
     off(event: "shell", handler?: ShellHandler): this;
     /**
-     * Регистрирует резовер типа курсора.
+     * Регистрирует резолвер типа курсора.
      */
     on(event: "cursorRequest", handler: CursorRequestHandler): this;
     /**
-     * Регистрирует резовер типа курсора.
+     * Регистрирует резолвер типа курсора.
      */
     off(event: "cursorRequest"): this;
 }
@@ -365,30 +383,24 @@ export interface AddDirInfo {
 export interface PlayerConstructor {
     /**
      * Создает новый проект из файла.
-     * @param dirInfo - настройки директорий проекта, дополнительные пути поиска имиджей.
+     * @param dirInfo - дополнительные пути поиска имиджей, описанией путей, используемых в качестве временных директорий.
      */
     (prjFile: PathInfo, dirInfo?: AddDirInfo[]): Promise<Player>;
 }
 
-export interface ZipFSAddDirInfo {
-    /**
-     * Путь директории.
-     */
-    dir: string;
-    /**
-     * Тип директории ("library" - библиотека имиджей, "temp" - временная директория). По умолчанию - library.
-     */
-    type?: "library" | "temp";
-}
-
-export interface ZipFSPlayerOptions {
-    path: string;
-    dirInfo?: ZipFSAddDirInfo[];
-}
-
 export interface ZipFS extends FileSystem {
+    /**
+     * Объединяет две файловых системы.
+     */
     merge(fs: ZipFS): this;
+    /**
+     * Возвращает список файлов в файловой системе
+     * @param regexp регексп для поиска файлов.
+     */
     files(regexp?: RegExp): IterableIterator<PathInfo>;
+    /**
+     * Нормализует путь. Если префикс диска не задан, он устаналивается как C:
+     */
     path(path: string): PathInfo;
     /**
      * Возвращает первый найденный .prj файл. Файл должен оканчиваться на .prj/.spj.
@@ -433,6 +445,9 @@ export interface StratumOptions {
      * URL каталога иконок.
      */
     iconsLocation?: string;
+    /**
+     * Функция, используемая для вывода информационных сообщений. По умолчанию - console.log.
+     */
     log: (...data: any[]) => any;
 }
 
