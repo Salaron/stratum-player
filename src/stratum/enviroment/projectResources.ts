@@ -56,7 +56,7 @@ export async function loadProjectResources(prjFile: PathInfo, classes: LazyLibra
     const settingsPaths = prjInfo.settings?.classSearchPaths;
     if (settingsPaths) {
         //prettier-ignore
-        const pathsSeparated = settingsPaths.split(",").map((s) => s.trim()).filter((s) => s);
+        const pathsSeparated = settingsPaths.split(";").map((s) => s.trim()).filter((s) => s);
         for (const localPath of pathsSeparated) {
             classDirs.push(workDir.resolve(localPath));
         }
