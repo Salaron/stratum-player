@@ -90,7 +90,7 @@ export interface ShellHandler {
 }
 
 export interface CursorRequestHandler {
-    (path: string): string;
+    (path: PathInfo): string;
 }
 
 export interface FileUpdateHandler {

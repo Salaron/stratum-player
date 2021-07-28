@@ -384,7 +384,7 @@ export class Enviroment implements EnviromentFunctions {
         if (!req) return;
         const scene = typeof wnameOrHspace === "number" ? this.scenes.get(wnameOrHspace) : this.windows.get(wnameOrHspace)?.scene;
         if (!scene) return;
-        const cursor = req(dir.resolve(filename).toString());
+        const cursor = req(dir.resolve(filename));
         this.currentCursor = cursor || "default";
         this.updateCursor();
     }
