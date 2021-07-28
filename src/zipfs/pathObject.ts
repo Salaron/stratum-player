@@ -36,6 +36,10 @@ export class PathObject implements PathInfo {
         return new PathObject(this.fs, vol, parts);
     }
 
+    basename(): string {
+        return this.parts.length > 0 ? this.parts[this.parts.length - 1] : this.vol;
+    }
+
     private cached: string | null = null;
     toString(): string {
         if (this.cached !== null) return this.cached;
