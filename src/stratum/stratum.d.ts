@@ -88,6 +88,10 @@ export interface CursorRequestHandler {
     (path: string): string;
 }
 
+export interface FileUpdateHandler {
+    (path: PathInfo, data: ArrayBuffer): Promise<void> | void;
+}
+
 export interface PlayerDiag {
     readonly iterations: number;
 }
@@ -407,6 +411,15 @@ export interface ZipFS extends FileSystem {
      * @param path часть пути к файлу для поиска.
      */
     prj(path?: string): PathInfo | null;
+
+    /**
+     * Добавляет обработчик, вызываемый при записи данных в файл.
+     */
+    on(event: "write", handler: FileUpdateHandler): this;
+    /**
+     * Удаляет обработчик событий ФС.
+     */
+    off(event: "write", handler?: FileUpdateHandler): this;
 }
 
 export type ZipSource = File | Blob | ArrayBuffer | Uint8Array;

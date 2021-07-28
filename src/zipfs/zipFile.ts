@@ -11,7 +11,7 @@ export class ZipFile implements ReadWriteFile {
     // readonly path: string;
     readonly pinfo: PathObject;
 
-    constructor(private localName: string, parent: ZipDir, src: LazyBuffer) {
+    constructor(private localName: string, readonly parent: ZipDir, src: LazyBuffer) {
         this.buf = src;
         // this.path = parent.path + "\\" + localName;
         this.pinfo = parent.pinfo.child(localName);
@@ -26,8 +26,14 @@ export class ZipFile implements ReadWriteFile {
         return (this.buf = await this.buf.async("arraybuffer"));
     }
 
-    write(data: ArrayBuffer): Promise<boolean> {
+    async write(data: ArrayBuffer): Promise<boolean> {
         this.buf = data;
-        return Promise.resolve(true);
+        const promises = [...this.parent.fs._updateHandlers].map((h) => h(this.pinfo, data));
+        try {
+            await Promise.all(promises);
+            return true;
+        } catch {
+            return false;
+        }
     }
 }

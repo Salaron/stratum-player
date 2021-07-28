@@ -12,18 +12,22 @@ export class ZipDir {
     // readonly path: string;
     readonly pinfo: PathObject;
 
+    readonly fs: RealZipFS;
+
     constructor(private localName: string, parent: RealZipFS | ZipDir) {
         if (parent instanceof ZipDir) {
             // this.fs = parent.fs;
             // this._parent = parent;
             // this.path = parent.path + "\\" + localName;
             this.pinfo = parent.pinfo.child(localName);
+            this.fs = parent.fs;
         } else {
             // this.fs = parent;
             // this._parent = this;
             // assertDiskPrefix(localName);
             // this.path = this.localName = localName + ":";
             this.pinfo = new PathObject(parent, localName);
+            this.fs = parent;
         }
     }
 

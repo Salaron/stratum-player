@@ -1,5 +1,5 @@
 import { loadAsync } from "jszip";
-import { OpenZipOptions, PathInfo, ReadWriteFile, ZipFS, ZipSource } from "stratum";
+import { FileUpdateHandler, OpenZipOptions, PathInfo, ReadWriteFile, ZipFS, ZipSource } from "stratum";
 import { PathObject } from "./pathObject";
 import { ZipDir } from "./zipDir";
 
@@ -36,6 +36,7 @@ export class RealZipFS implements ZipFS {
         return fs;
     }
 
+    _updateHandlers = new Set<FileUpdateHandler>();
     private readonly disks = new Map<string, ZipDir>();
     merge(fs: RealZipFS): this {
         const { disks: otherDisks } = fs;
@@ -127,5 +128,21 @@ export class RealZipFS implements ZipFS {
     file(path: PathInfo): ReadWriteFile | null {
         const f = this.getFileOrDir(path);
         return f && !f.isDir ? f : null;
+    }
+
+    on(event: "write", handler: FileUpdateHandler): this {
+        if (event !== "write") return this;
+        this._updateHandlers.add(handler);
+        return this;
+    }
+
+    off(event: "write", handler?: FileUpdateHandler): this {
+        if (event !== "write") return this;
+        if (handler) {
+            this._updateHandlers.delete(handler);
+        } else {
+            this._updateHandlers.clear();
+        }
+        return this;
     }
 }
