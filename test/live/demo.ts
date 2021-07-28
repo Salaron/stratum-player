@@ -121,6 +121,11 @@ export async function runDemo(name: string, strat: "smooth" | "fast" = "smooth",
             playerPauseElem.addEventListener("click", handleClick);
             playerStepElem.addEventListener("click", handleClick);
 
+            fs.on("write", (path, data) => {
+                console.log(path.toString());
+                console.log(new TextDecoder("windows-1251").decode(data));
+            });
+
             project
                 .on("closed", updateControls)
                 .on("shell", (path, args, directory, flag) => {
@@ -129,11 +134,13 @@ export async function runDemo(name: string, strat: "smooth" | "fast" = "smooth",
                     }
                 })
                 .on("cursorRequest", (path) => {
-                    console.log(path);
-                    if (path.endsWith("a.cur")) return "default";
-                    if (path.endsWith("b.cur")) return "grab";
-                    if (path.endsWith("c.cur")) return "grabbing";
-                    return "";
+                    // prettier-ignore
+                    switch(path.basename()) {
+                        case "a.cur": return "default";
+                        case "b.cur": return "grab";
+                        case "c.cur": return "grabbing";
+                        default: return "";
+                    }
                 });
 
             updateControls();
