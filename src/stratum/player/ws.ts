@@ -54,8 +54,8 @@ export class SimpleWindow implements ViewContainerController {
 
     setClientSize(x: number, y: number): void {
         // console.log("client", x, y);
-        this.view.style.setProperty("width", x.toString());
-        this.view.style.setProperty("height", y.toString());
+        this.view.style.setProperty("width", x.toString() + "px");
+        this.view.style.setProperty("height", y.toString() + "px");
     }
 
     setTitle(title: string) {
