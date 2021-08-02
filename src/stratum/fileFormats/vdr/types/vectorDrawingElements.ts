@@ -52,12 +52,19 @@ export interface GroupElement extends ElementBase {
     childHandles: number[];
 }
 
+export interface LineElementArrow {
+    angle: number;
+    length: number;
+    fill: boolean;
+}
+
 export interface LineElement extends Element2dBase {
     type: "line";
     penHandle: number;
     brushHandle: number;
     coords: number[];
-    arrows?: Uint8Array;
+    arrowA?: LineElementArrow;
+    arrowB?: LineElementArrow;
 }
 
 interface BitmapBase extends Element2dBase {
