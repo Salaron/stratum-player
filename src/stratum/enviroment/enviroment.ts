@@ -2705,15 +2705,15 @@ export class Enviroment implements EnviromentFunctions {
     //#endregion
 
     //#region ФУНКЦИИ УПРАВЛЕНИЯ МАТРИЦАМИ
-    stratum_mCreate(q: number, minX: number, maxX: number, minY: number, maxY: number, flag: number): number {
+    stratum_mCreate(q: number, minV: number, maxV: number, minH: number, maxH: number, flag: number): number {
         if (flag <= 0) return 0;
 
-        const rows = maxX - minX + 1;
-        const cols = maxY - minY + 1;
+        const rows = maxV - minV + 1;
+        const cols = maxH - minH + 1;
         if (rows <= 0 || cols <= 0) return 0;
 
         const handle = q === 0 ? HandleMap.getFreeNegativeHandle(this.matrices) : q;
-        this.matrices.set(handle, new EnvMatrix({ rows, cols, minX, minY }));
+        this.matrices.set(handle, new EnvMatrix({ rows, cols, minV, minH }));
         return handle;
     }
     stratum_mDelete(q: number, flag: number): NumBool {
@@ -2735,6 +2735,24 @@ export class Enviroment implements EnviromentFunctions {
     stratum_async_mEditor(q: number, flag: number): NumBool | Promise<NumBool> {
         if (flag <= 0) return 0;
         throw Error("MEditor: редактор матриц не реализован");
+    }
+    stratum_mSort(q: number, n: number, k: number, flag: number): number {
+        if (flag <= 0) return 0;
+        const mat = this.matrices.get(q);
+        if (!mat) return 0;
+
+        switch (k) {
+            case 1:
+                return mat.sortColumn(n, false);
+            case 2:
+                return mat.sortColumn(n, true);
+            case 3:
+                return mat.sortRow(n, false);
+            case 4:
+                return mat.sortRow(n, true);
+            default:
+                return 0;
+        }
     }
     // stratum_mDiag
     //#endregion
