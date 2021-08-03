@@ -116,7 +116,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
         inputState: new Set(),
     };
     // private blockFirstPointerMove = false;
-    // _defs: SVGDefsElement;
+    _defs: SVGDefsElement;
 
     readonly view: HTMLDivElement;
     readonly rootSVG: SVGSVGElement;
@@ -147,7 +147,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
         view.appendChild(this.rootSVG);
         view.appendChild(this.rootHTML);
 
-        // this.root.appendChild((this._defs = document.createElementNS("http://www.w3.org/2000/svg", "defs")));
+        this.rootSVG.appendChild((this._defs = document.createElementNS("http://www.w3.org/2000/svg", "defs")));
         RendererSVG.scenes.add(this);
         RendererSVG.updater.run(RendererSVG.redrawAll);
     }
