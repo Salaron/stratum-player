@@ -1,4 +1,5 @@
 import { colorrefToCSSColor } from "stratum/common/colorrefParsers";
+import { encode } from "stratum/helpers/win1251";
 import { TextToolPartTool } from "../tools/textToolPartTool";
 import { FontSVG } from "./fontSVG";
 import { TextSVG } from "./textSVG";
@@ -57,6 +58,8 @@ export class TSpanSVG {
         const part = this.part;
 
         const text = part.str._tool.text();
+        const font = part.font._tool as FontSVG;
+
         if (this._prevText !== text) {
             this._prevText = text;
 
@@ -94,7 +97,11 @@ export class TSpanSVG {
                     s.setAttribute("dy", `1.15em`);
                     // s.setAttribute("dy", f.size() + "px");
                 }
-                s.innerHTML = strs[i] || "&#8203;";
+                let text = strs[i];
+                if (font.fname() === "Symbol") {
+                    text = [...encode(text)].map((el) => String.fromCharCode(el === 142 ? 163 : el)).join("");
+                }
+                s.innerHTML = text || "&#8203;";
             });
 
             shapeChanged = true;
@@ -103,14 +110,13 @@ export class TSpanSVG {
         if (this._prevFontVer !== part.font._ver) {
             this._prevFontVer = part.font._ver;
 
-            const f = part.font._tool as FontSVG;
             this._spans.forEach((s) => {
-                s.setAttribute("font-family", f.fname());
+                s.setAttribute("font-family", font.fname());
                 // s.setAttribute("letter-spacing", f.spacing().toString());
-                s.setAttribute("font-size", f.size().toString());
-                s.setAttribute("font-style", f.fstyle());
-                s.setAttribute("text-decoration", f.tdecoration());
-                s.setAttribute("font-weight", f.fweight());
+                s.setAttribute("font-size", font.size().toString());
+                s.setAttribute("font-style", font.fstyle());
+                s.setAttribute("text-decoration", font.tdecoration());
+                s.setAttribute("font-weight", font.fweight());
             });
             shapeChanged = true;
         }
