@@ -15,7 +15,7 @@ export class TextSVG extends TextElement2D {
     private prevHeight = 0;
     private prevAngle = 0;
 
-    private bbox: DOMRect | null = null;
+    private tlength: number | null = null;
 
     constructor(scene: Scene, tool: TextTool, args: TextElement2DArgs = {}) {
         super(scene, tool, args);
@@ -36,23 +36,19 @@ export class TextSVG extends TextElement2D {
         this._parent?._recalcBorders();
     }
 
-    private getBbox(): DOMRect {
+    actualWidth(): number {
         this.render();
-        if (!this.bbox) {
+        if (this.tlength === null) {
             const p = this._svg.parentElement;
             if (!p) {
                 (this.scene as RendererSVG).rootSVG.appendChild(this._svg);
             }
-            this.bbox = this._svg.getBBox();
+            this.tlength = this._svg.getComputedTextLength();
             if (!p) {
                 this._svg.remove();
             }
         }
-        return this.bbox;
-    }
-
-    actualWidth(): number {
-        return this.getBbox().width;
+        return this.tlength;
     }
 
     actualHeight(): number {
@@ -83,7 +79,7 @@ export class TextSVG extends TextElement2D {
             shapeChanged = shapeChanged || res;
         });
         if (shapeChanged) {
-            this.bbox = null;
+            this.tlength = null;
         }
 
         // const ox = this._x - this.scene._offsetX;
