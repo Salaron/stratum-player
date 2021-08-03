@@ -1,6 +1,8 @@
 {
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
+        "incremental": true,
+        "tsBuildInfoFile": "../../.buildcache/zipfs.tsbuildinfo",
         "baseUrl": ".",
         "rootDir": ".",
         "noUnusedLocals": true,
