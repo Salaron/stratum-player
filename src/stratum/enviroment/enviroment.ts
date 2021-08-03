@@ -28,6 +28,7 @@ import { EnvArray, EnvArraySortingAlgo } from "./components/envArray";
 import { EnvMatrix } from "./components/envMatrix";
 import { EnvStream } from "./components/envStream";
 import { FrameController } from "./frameController";
+import { createArrow } from "./helpers/createArrow";
 import { copyElement, createElementOrder, createElements } from "./helpers/createNCopyObjects";
 import { createBrushTools, createFontTools, createImageTools, createPenTools, createStringTools, createTextTools } from "./helpers/createNCopyTools";
 import { EnviromentWindowSettings, parseEnviromentWindowSettings } from "./helpers/enviromentWindowSettings";
@@ -2383,6 +2384,16 @@ export class Enviroment implements EnviromentFunctions {
         const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
 
         return line.update(index, newX, newY) ? 1 : 0;
+    }
+    stratum_setLineArrows2d(hspace: number, hline: number, aa: number, al: number, af: number, ba: number, bl: number, bf: number): NumBool {
+        const line = this.scenes.get(hspace)?.objects.get(hline);
+        if (line?.type !== "line") return 0;
+
+        // prettier-ignore
+        line
+        .setArrowA(createArrow({ angle: aa, length: al, fill: !!af }, true))
+        .setArrowB(createArrow({ angle: ba, length: bl, fill: !!bf }, false));
+        return 1;
     }
 
     // Функции для работы с группами
