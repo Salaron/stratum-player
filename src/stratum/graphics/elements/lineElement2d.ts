@@ -85,47 +85,11 @@ export class LineElement2D extends Element2D {
         return this;
     }
 
-    // copy(scene: Scene, attribs: number): SceneLine {
-    //     const brushHandle = this.brush?.copy(scene).handle ?? 0;
-    //     const penHandle = this.pen?.copy(scene).handle ?? 0;
-
-    //     const coords = this.coords.slice();
-    //     for (let i = 0; i < coords.length; i += 2) {
-    //         coords[i + 0] += this._x;
-    //         coords[i + 1] += this._y;
-    //     }
-
-    //     const handle = HandleMap.getFreeHandle(scene.objects);
-    //     const copy = new SceneLine(scene, {
-    //         handle,
-    //         name: this.name,
-    //         coords,
-    //         brushHandle,
-    //         penHandle,
-    //     });
-
-    //     copy.hyperbase = this.hyperbase;
-    //     copy._selectable = this._selectable;
-    //     copy._layer = this._layer;
-    //     copy._visible = this._visible;
-
-    //     scene.objects.set(handle, copy);
-    //     scene.primaryObjects.push(copy);
-    //     return copy;
-    // }
-
     px(index: number): number {
         const coordIdx = index * 2;
         if (coordIdx < 0 || coordIdx >= this._coords.length) return 0;
 
         return this._coords[coordIdx + 0] + this._x;
-
-        // const canvasX = this._coords[coordIdx + 0] + this._x;
-        // const canvasY = this._coords[coordIdx + 1] + this._y;
-
-        // const mat = this.scene._invMatrix;
-        // const w = canvasX * mat[2] + canvasY * mat[5] + mat[8];
-        // return (canvasX * mat[0] + canvasY * mat[3] + mat[6]) / w;
     }
 
     py(index: number): number {
@@ -133,12 +97,6 @@ export class LineElement2D extends Element2D {
         if (coordIdx < 0 || coordIdx >= this._coords.length) return 0;
 
         return this._coords[coordIdx + 1] + this._y;
-        // const canvasX = this._coords[coordIdx + 0] + this._x;
-        // const canvasY = this._coords[coordIdx + 1] + this._y;
-
-        // const mat = this.scene._invMatrix;
-        // const w = canvasX * mat[2] + canvasY * mat[5] + mat[8];
-        // return (canvasX * mat[1] + canvasY * mat[4] + mat[7]) / w;
     }
 
     private pointsChanged() {
@@ -179,14 +137,6 @@ export class LineElement2D extends Element2D {
     add(index: number, x: number, y: number): boolean {
         if (index === 0) return false;
 
-        // const mat = this.scene._matrix;
-        // const w = x * mat[2] + y * mat[5] + mat[8];
-        // const canvasX = (x * mat[0] + y * mat[3] + mat[6]) / w;
-        // const canvasY = (x * mat[1] + y * mat[4] + mat[7]) / w;
-
-        // const localX = canvasX - this._x;
-        // const localY = canvasY - this._y;
-
         const localX = x - this._x;
         const localY = y - this._y;
 
@@ -203,14 +153,6 @@ export class LineElement2D extends Element2D {
     update(index: number, x: number, y: number): boolean {
         const coordIdx = index * 2;
         if (coordIdx < 0 || coordIdx >= this._coords.length) return false;
-
-        // const mat = this.scene._matrix;
-        // const w = x * mat[2] + y * mat[5] + mat[8];
-        // const canvasX = (x * mat[0] + y * mat[3] + mat[6]) / w;
-        // const canvasY = (x * mat[1] + y * mat[4] + mat[7]) / w;
-
-        // const localX = canvasX - this._x;
-        // const localY = canvasY - this._y;
 
         const localX = x - this._x;
         const localY = y - this._y;

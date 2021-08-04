@@ -68,16 +68,10 @@ export class Element2D {
     }
 
     x(): number {
-        // const mat = this.scene._invMatrix;
-        // const w = this._x * mat[2] + this._y * mat[5] + mat[8];
-        // return (this._x * mat[0] + this._y * mat[3] + mat[6]) / w;
         return this._x;
     }
 
     y(): number {
-        // const mat = this.scene._invMatrix;
-        // const w = this._x * mat[2] + this._y * mat[5] + mat[8];
-        // return (this._x * mat[1] + this._y * mat[4] + mat[7]) / w;
         return this._y;
     }
 
@@ -90,12 +84,6 @@ export class Element2D {
     }
 
     move(x: number, y: number): this {
-        // const mat = this.scene._matrix;
-        // const w = x * mat[2] + y * mat[5] + mat[8];
-        // const canvasX = (x * mat[0] + y * mat[3] + mat[6]) / w;
-        // const canvasY = (x * mat[1] + y * mat[4] + mat[7]) / w;
-
-        // this._moved(canvasX - this._x, canvasY - this._y);
         this._moved(x - this._x, y - this._y);
         this._parent?._recalcBorders();
         this.scene._dirty = true;
@@ -104,13 +92,6 @@ export class Element2D {
 
     rotate(ox: number, oy: number, angle: number): this {
         if (angle === 0) return this;
-
-        // const mat = this.scene._matrix;
-        // const w = ox * mat[2] + oy * mat[5] + mat[8];
-        // const canvasX = (ox * mat[0] + oy * mat[3] + mat[6]) / w;
-        // const canvasY = (ox * mat[1] + oy * mat[4] + mat[7]) / w;
-
-        // this._rotated(canvasX, canvasY, angle);
         this._rotated(ox, oy, angle);
         this._parent?._recalcBorders();
         this.scene._dirty = true;
