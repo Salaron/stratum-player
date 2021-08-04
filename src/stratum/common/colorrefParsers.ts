@@ -59,12 +59,10 @@ const syscolorFlag = 2 << 24;
  * Используется при парсинге дефолтных переменных имиджа.
  */
 export function parseColorRef(value: string) {
-    const val = value.toLowerCase().trim();
-    // "transparent"
-    if (val.startsWith("transparent")) return transparentFlag;
+    const num = parseInt(value);
+    if (!isNaN(num)) return num;
 
-    // "syscolor(14)" -> 14
-    if (val.startsWith("syscolor")) return syscolorFlag | parseInt(val.split("(")[1].split(")")[0]);
+    const val = value.toLowerCase().trim();
 
     // "rgb(3,200,127)" -> 3 | (200 << 8) | (127 << 16)
     if (val.startsWith("rgb")) {
@@ -75,6 +73,12 @@ export function parseColorRef(value: string) {
             .map((v) => parseInt(v));
         return values[0] | (values[1] << 8) | (values[2] << 16);
     }
+
+    // "transparent"
+    if (val.startsWith("transparent")) return transparentFlag;
+
+    // "syscolor(14)" -> 14
+    if (val.startsWith("syscolor")) return syscolorFlag | parseInt(val.split("(")[1].split(")")[0]);
 
     throw Error(`Неизвестный код цвета: ${value}`);
 }
