@@ -1,13 +1,13 @@
 // Запуск одной строкой:
 
-import { GoldenWS, goldenws } from "goldenws/goldenws";
+// import { GoldenWS, goldenws } from "goldenws/goldenws";
 import { options } from "stratum/options";
 import { RealPlayer } from "stratum/player";
 import { PathInfo, ZipFS } from "stratum/stratum";
 import { RealZipFS } from "zipfs/realZipfs";
 
 // fetch("project.zip").then(r => r.blob()).then(unzip).then(fs => fs.project()).then(p => p.play(windows));
-export async function runDemo(name: string, strat: "smooth" | "fast" = "smooth", path?: string) {
+export async function demo(name: string, strat: "smooth" | "fast" = "smooth", path?: string) {
     options.log = () => {};
     options.iconsLocation = "./data/icons";
     // setLogLevel("full");
@@ -61,9 +61,10 @@ export async function runDemo(name: string, strat: "smooth" | "fast" = "smooth",
     // Поехали
 
     const elem = document.getElementById("main_window_container")!;
-    let ws: GoldenWS | null = null;
+    // let ws: GoldenWS | null = null;
+    let ws = null;
     // elem.style.setProperty("overflow", "hidden");
-    const gws = goldenws;
+    // const gws = goldenws;
     // ws = gws(elem);
     // const div = document.createElement("canvas");
     // div.width = 1000;

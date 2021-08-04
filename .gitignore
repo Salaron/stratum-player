@@ -176,3 +176,4 @@ crashlytics-build.properties
 !/static/scripts/autorefresh.js
 !/static/scripts/chai.min.js
 !/static/scripts/mocha.min.js
+.buildcache

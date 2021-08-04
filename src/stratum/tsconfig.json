@@ -3,6 +3,8 @@
     "compilerOptions": {
         "baseUrl": ".",
         "rootDir": ".",
+        "incremental": true,
+        "tsBuildInfoFile": "../../.buildcache/stratum.tsbuildinfo",
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "allowUnreachableCode": false,
