@@ -235,8 +235,32 @@ export function readLine(reader: BinaryReader, version: number): LineElement {
 
     if (version > 0x0200) {
         const size = reader.byte();
-        if (size > 0) {
-            res.arrows = reader.bytes(size);
+        if (size === 50) {
+            // VMACHINE.CPP:2472 - описание формата стрелок.
+            // искать как tagARROW2D
+
+            const lengthA = reader.float64();
+            const angleA = reader.float64();
+            reader.skip(8); //Adistance
+            const lengthB = reader.float64();
+            const angleB = reader.float64();
+            reader.skip(8); //Bdistance
+            const flags = reader.uint16();
+
+            res.arrowA = {
+                angle: angleA,
+                length: lengthA,
+                fill: !!(flags & 1),
+            };
+
+            res.arrowB = {
+                angle: angleB,
+                length: lengthB,
+                fill: !!(flags & 2),
+            };
+        } else if (size !== 0) {
+            console.warn(`Ошибка чтения стрелок элемента #${res.handle}.`);
+            reader.skip(size);
         }
     }
     return res;

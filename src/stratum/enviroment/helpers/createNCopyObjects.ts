@@ -15,6 +15,7 @@ import { TextTool } from "stratum/graphics/tools/textTool";
 import { HandleMap } from "stratum/helpers/handleMap";
 import { SceneElement, SceneWrapper } from "../sceneWrapper";
 import { graphicsImpl } from "../toolsAndElementsConstructors";
+import { createArrow } from "./createArrow";
 import { copyBrush, copyFontTool, copyImageTool, copyPen, copyTextTool } from "./createNCopyTools";
 
 function parseHardHidden(opts: number): boolean {
@@ -67,6 +68,8 @@ export function createElements(scene: Scene, tools: EnviromentElementsTools, ele
                     unselectable,
                     pen: tools.pens.get(e.penHandle),
                     brush: tools.brushes.get(e.brushHandle),
+                    arrowA: e.arrowA && createArrow(e.arrowA, true),
+                    arrowB: e.arrowB && createArrow(e.arrowB, false),
                 };
                 return [e.handle, new graphicsImpl.line(scene, e.coords, args)];
             }
@@ -184,6 +187,8 @@ export function copyElement(w: SceneWrapper, obj: SceneElement): SceneElement {
                 visib: obj.visib.clone(),
                 brush: brush ? copyBrush(w, brush) : null,
                 pen: pen ? copyPen(w, pen) : null,
+                arrowA: obj.arrowA(),
+                arrowB: obj.arrowB(),
             });
             break;
         }

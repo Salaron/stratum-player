@@ -5,16 +5,27 @@ import { BrushTool } from "../tools/brushTool";
 import { PenTool } from "../tools/penTool";
 import { Element2D, Element2DArgs } from "./element2d";
 
+export interface LineElement2DArrow {
+    readonly coords: readonly number[];
+    readonly fill: boolean;
+    readonly width: number;
+    readonly oy: number;
+}
+
 export interface LineElement2DArgs extends Element2DArgs {
     visib?: VisibilityComponent;
     pen?: PenTool | null;
     brush?: BrushTool | null;
+    arrowA?: LineElement2DArrow | null;
+    arrowB?: LineElement2DArrow | null;
 }
 
 export class LineElement2D extends Element2D {
     readonly type = "line";
     _coords: number[];
     _shapeVer: number = 0;
+    _arrowA: LineElement2DArrow | null;
+    _arrowB: LineElement2DArrow | null;
 
     readonly visib: VisibilityComponent;
     readonly pen: ToolKeeperComponent<PenTool | null>;
@@ -52,6 +63,26 @@ export class LineElement2D extends Element2D {
         this.visib = args.visib ?? new VisibilityComponent(scene, true, 0);
         this.pen = new ToolKeeperComponent(scene, args.pen ?? null);
         this.brush = new ToolKeeperComponent(scene, args.brush ?? null);
+        this._arrowA = args.arrowA ?? null;
+        this._arrowB = args.arrowB ?? null;
+    }
+
+    arrowA(): LineElement2DArrow | null {
+        return this._arrowA;
+    }
+
+    setArrowA(arrow: LineElement2DArrow | null): this {
+        this._arrowA = arrow;
+        return this;
+    }
+
+    arrowB(): LineElement2DArrow | null {
+        return this._arrowB;
+    }
+
+    setArrowB(arrow: LineElement2DArrow | null): this {
+        this._arrowB = arrow;
+        return this;
     }
 
     // copy(scene: Scene, attribs: number): SceneLine {
