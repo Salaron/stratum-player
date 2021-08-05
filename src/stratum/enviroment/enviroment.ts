@@ -2713,6 +2713,9 @@ export class Enviroment implements EnviromentFunctions {
         if (!second) return 0;
         return first.copyTo(second, from, length);
     }
+    stratum_getLine(hstream: number, size: number, sep: string): string {
+        return this.streams.get(hstream)?.getLine(size, sep) ?? "";
+    }
     //#endregion
 
     //#region ФУНКЦИИ УПРАВЛЕНИЯ МАТРИЦАМИ
