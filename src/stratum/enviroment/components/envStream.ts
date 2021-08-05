@@ -173,7 +173,7 @@ export class EnvStream {
                 end = 1;
                 break;
             }
-            if (b === EnvStream.slashR && size + 1 < maxLen && this.v.getInt8(pos + size + 1) === EnvStream.slashN) {
+            if (b === EnvStream.slashR && size + 1 < maxLen && this.v.getUint8(pos + size + 1) === EnvStream.slashN) {
                 end = 2;
                 break;
             }
