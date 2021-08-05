@@ -1,5 +1,5 @@
 import { NumBool } from "stratum/common/types";
-import { decode, encode } from "stratum/helpers/win1251";
+import { decode, encode, win1251Table } from "stratum/helpers/win1251";
 import { ReadWriteFile } from "stratum/stratum";
 
 export interface FlushCallback {
@@ -158,6 +158,24 @@ export class EnvStream {
 
     text(): string {
         return decode(new Uint8Array(this.v.buffer));
+    }
+
+    getLine(size: number, sep: string): string {
+        const pos = this.p;
+        const maxLen = Math.min(size, this.size() - pos);
+        if (maxLen <= 0) return "";
+
+        let readed = 0;
+        let result = "";
+        while (readed < maxLen) {
+            const byte = this.v.getUint8(pos + readed);
+            readed++;
+            const char = win1251Table[byte];
+            result += char;
+            if (char === sep) break;
+        }
+        this.p += readed;
+        return result;
     }
 
     line(): string {
