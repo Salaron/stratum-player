@@ -176,7 +176,7 @@ export class Enviroment implements EnviromentFunctions {
     getDate(arr1: MutableArrayLike<number>, year: number, arr2: MutableArrayLike<number>, mon: number, arr3: MutableArrayLike<number>, day: number): void {
         const time = new Date();
         arr1[year] = time.getFullYear();
-        arr2[mon] = time.getMonth();
+        arr2[mon] = time.getMonth() + 1;
         arr3[day] = time.getDate();
     }
     getActualSize2d(hspace: number, hobject: number, xArr: MutableArrayLike<number>, xId: number, yArr: MutableArrayLike<number>, yId: number): NumBool {
