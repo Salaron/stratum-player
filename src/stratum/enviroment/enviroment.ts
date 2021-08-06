@@ -2366,7 +2366,14 @@ export class Enviroment implements EnviromentFunctions {
         return (x * mat[1] + y * mat[4] + mat[7]) / w;
     }
     // stratum_setBrushObject2d(hspace : number, hline : number, hbrush : number) : NumBool {}
-    // stratum_setPenObject2d(hspace : number, hline : number, hpen : number) : NumBool {}
+    stratum_setPenObject2d(hspace: number, hline: number, hpen: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const line = w.objects.get(hline);
+        if (line?.type !== "line") return 0;
+        line.pen.setTool(w.pens.get(hpen) ?? null);
+        return 1;
+    }
     stratum_setVectorPoint2d(hspace: number, hline: number, index: number, x: number, y: number): NumBool {
         const wrapper = this.scenes.get(hspace);
         if (!wrapper) return 0;
