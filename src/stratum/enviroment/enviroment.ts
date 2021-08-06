@@ -1447,14 +1447,6 @@ export class Enviroment implements EnviromentFunctions {
         return this.scenes.get(hspace)?.pens.get(hpen)?.width() ?? 0;
     }
 
-    stratum_setPenObject2d(hspace: number, hobj: number, hpen: number): NumBool {
-        const scene = this.scenes.get(hspace)
-        if (!scene) return 0;
-        const line = scene.objects.get(hobj)
-        if (line?.type !== "line") return 0;
-        line.pen.setTool(scene.pens.get(hpen) || null)
-        return 1;
-    }
     stratum_setPenColor2d(hspace: number, hpen: number, color: number): NumBool {
         const p = this.scenes.get(hspace)?.pens.get(hpen);
         if (!p) return 0;
@@ -2374,7 +2366,14 @@ export class Enviroment implements EnviromentFunctions {
         return (x * mat[1] + y * mat[4] + mat[7]) / w;
     }
     // stratum_setBrushObject2d(hspace : number, hline : number, hbrush : number) : NumBool {}
-    // stratum_setPenObject2d(hspace : number, hline : number, hpen : number) : NumBool {}
+    stratum_setPenObject2d(hspace: number, hline: number, hpen: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const line = w.objects.get(hline);
+        if (line?.type !== "line") return 0;
+        line.pen.setTool(w.pens.get(hpen) ?? null);
+        return 1;
+    }
     stratum_setVectorPoint2d(hspace: number, hline: number, index: number, x: number, y: number): NumBool {
         const wrapper = this.scenes.get(hspace);
         if (!wrapper) return 0;
