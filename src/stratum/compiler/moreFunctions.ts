@@ -9,12 +9,7 @@ const arcsin = `function arcsin(a) {
     return Math.asin(a) || 0;
 }`;
 const change = `function change(s1, s2, s3) {
-    var res = s1;
-    do {
-        var prev = res;
-        var res = res.replace(s2, s3);
-    } while (res !== prev);
-    return res;
+    return s1.split(s2).join(s3);
 }`;
 const compareI = `function compareI(s1, s2, n) {
     return s1.substring(0, n) === s2.substring(0, n) ? 1 : 0;

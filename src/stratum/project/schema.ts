@@ -525,6 +525,7 @@ export class Schema implements EventSubscriber, SchemaContextFunctions {
 
             for (let i = 0; i < idTypes.length; i += 3) {
                 const typ = idTypes[i + 0];
+                if (typeof typ === "undefined") continue;
                 const myId = TLB[idTypes[i + 1]];
                 const otherId = rec.TLB[idTypes[i + 2]];
 
@@ -546,6 +547,7 @@ export class Schema implements EventSubscriber, SchemaContextFunctions {
 
             for (let i = 0; i < idTypes.length; i += 3) {
                 const typ = idTypes[i + 0];
+                if (typeof typ === "undefined") continue;
                 const myId = TLB[idTypes[i + 1]];
                 const otherId = rec.TLB[idTypes[i + 2]];
 
