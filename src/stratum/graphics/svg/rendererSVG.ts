@@ -324,7 +324,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
                 scan,
                 key: translatedKey,
             };
-            this.handlers[type].forEach((h) => h(event));
+            this.handlers["keychar"].forEach((h) => h(event));
         }
     }
 
