@@ -94,7 +94,7 @@ export class LineSVG extends LineElement2D {
             this._svg.setAttribute("points", coordsToSVGPoints(this._coords));
         }
 
-        if (this.prevAArrow !== this._arrowA) {
+        if (this.prevAArrow !== this._arrowA || toolChanged) {
             this.prevAArrow = this._arrowA;
             if (this._arrowA && penTool) {
                 const a = this.svgArrowA || (this.svgArrowA = this.createMarker("marker-end"));
@@ -106,7 +106,7 @@ export class LineSVG extends LineElement2D {
             }
         }
 
-        if (this.prevBArrow !== this._arrowB) {
+        if (this.prevBArrow !== this._arrowB || toolChanged) {
             this.prevBArrow = this._arrowB;
             if (this._arrowB && penTool) {
                 const a = this.svgArrowB || (this.svgArrowB = this.createMarker("marker-start"));

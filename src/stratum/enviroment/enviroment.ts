@@ -1447,6 +1447,14 @@ export class Enviroment implements EnviromentFunctions {
         return this.scenes.get(hspace)?.pens.get(hpen)?.width() ?? 0;
     }
 
+    stratum_setPenObject2d(hspace: number, hobj: number, hpen: number): NumBool {
+        const scene = this.scenes.get(hspace)
+        if (!scene) return 0;
+        const line = scene.objects.get(hobj)
+        if (line?.type !== "line") return 0;
+        line.pen.setTool(scene.pens.get(hpen) || null)
+        return 1;
+    }
     stratum_setPenColor2d(hspace: number, hpen: number, color: number): NumBool {
         const p = this.scenes.get(hspace)?.pens.get(hpen);
         if (!p) return 0;
