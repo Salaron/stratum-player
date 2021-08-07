@@ -354,7 +354,7 @@ export class Enviroment implements EnviromentFunctions {
         return readFile(dir.resolve(fileName), "bmp")
             .then((img) => {
                 const handle = HandleMap.getFreeHandle(w.dibs);
-                w.dibs.set(handle, new graphicsImpl.dib(w.scene, img, { handle }));
+                (img.transparent ? w.doubleDibs : w.dibs).set(handle, new graphicsImpl.dib(w.scene, img.img, { handle }));
                 return handle;
             })
             .catch(() => 0);

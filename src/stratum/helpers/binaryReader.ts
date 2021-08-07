@@ -16,6 +16,10 @@ export class BinaryReader {
         this.name = name ?? "";
     }
 
+    buffer(): ArrayBuffer {
+        return this.v.buffer;
+    }
+
     pos(): number {
         return this.p;
     }
