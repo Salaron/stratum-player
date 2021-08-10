@@ -77,7 +77,7 @@ export class TSpanSVG {
                 this._prevBg = -1;
 
                 if (diff > 0) {
-                    const subspansLen = this._subspans.length - 1;
+                    const subspansLen = this._subspans.length;
                     let wherePut = subspansLen > 0 ? this._subspans[subspansLen - 1] : this.owner._svg;
                     while (diff !== 0) {
                         const s = createTspan();
