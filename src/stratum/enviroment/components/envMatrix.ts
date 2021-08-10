@@ -40,7 +40,7 @@ export class EnvMatrix {
     }
 
     sum(): number {
-        return this.data.reduce((e, sum) => e + sum);
+        return this.data.reduce((e, sum) => e + sum, 0);
     }
 
     fill(value: number): NumBool {
