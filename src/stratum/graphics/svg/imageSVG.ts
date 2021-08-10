@@ -44,10 +44,12 @@ export class ImageSVG extends ImageElement2D {
         if (this._cropVer !== this.prevCropVer) {
             this.prevCropVer = this._cropVer;
             const c = this._crop;
+            const imgW = imgTool.width();
+            const imgH = imgTool.height();
             if (c) {
-                this._svg.setAttribute("viewBox", `${c.x} ${c.y} ${c.w} ${c.h}`);
+                this._svg.setAttribute("viewBox", `${Math.max(c.x, 0)} ${Math.max(c.y, 0)} ${Math.min(c.w, imgW)} ${Math.min(c.h, imgH)}`);
             } else {
-                this._svg.setAttribute("viewBox", `0 0 ${imgTool.width()} ${imgTool.height()}`);
+                this._svg.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
             }
         }
 
