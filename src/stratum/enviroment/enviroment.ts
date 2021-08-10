@@ -1408,7 +1408,7 @@ export class Enviroment implements EnviromentFunctions {
             case Constant.TEXT2D:
                 const t = w.texts.get(toolHandle);
                 if (!t) return 0;
-                t.parts.forEach((t) => {
+                t.parts().forEach((t) => {
                     t.font.forceUnsub();
                     t.str.forceUnsub();
                 });
@@ -1662,30 +1662,30 @@ export class Enviroment implements EnviromentFunctions {
         return text?.type === "text" ? text.tool.tool()?.handle ?? 0 : 0;
     }
     stratum_getTextCount2d(hspace: number, htext: number): number {
-        return this.scenes.get(hspace)?.texts.get(htext)?.parts.length ?? 0;
+        return this.scenes.get(hspace)?.texts.get(htext)?.parts().length ?? 0;
     }
 
     stratum_getTextFont2d(hspace: number, htext: number, index: number = 0): number {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         return parts[index].font.tool().handle;
     }
     stratum_getTextString2d(hspace: number, htext: number, index: number = 0): number {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         return parts[index].str.tool().handle;
     }
     stratum_getTextFgColor2d(hspace: number, htext: number, index: number = 0): number {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         return parts[index].fgColor();
     }
     stratum_getTextBkColor2d(hspace: number, htext: number, index: number = 0): number {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         return parts[index].bgColor();
     }
@@ -1704,7 +1704,7 @@ export class Enviroment implements EnviromentFunctions {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        const parts = w.texts.get(htext)?.parts;
+        const parts = w.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
 
         const p = parts[index].setFgColor(fgColor).setBgColor(bgColor);
@@ -1720,14 +1720,14 @@ export class Enviroment implements EnviromentFunctions {
 
     stratum_setTextFgColor2d(hspace: number, htext: number, index: number, fgColor: number): NumBool {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         parts[index].setFgColor(fgColor);
         return 1;
     }
     stratum_setTextBkColor2d(hspace: number, htext: number, index: number, bgColor: number): NumBool {
         if (index < 0) return 0;
-        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts;
+        const parts = this.scenes.get(hspace)?.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
         parts[index].setBgColor(bgColor);
         return 1;
@@ -1741,7 +1741,7 @@ export class Enviroment implements EnviromentFunctions {
         const font = w.fonts.get(hfont);
         if (!font) return 0;
 
-        const parts = w.texts.get(htext)?.parts;
+        const parts = w.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
 
         parts[index].font.setTool(font);
@@ -1756,10 +1756,28 @@ export class Enviroment implements EnviromentFunctions {
         const str = w.strings.get(hstring);
         if (!str) return 0;
 
-        const parts = w.texts.get(htext)?.parts;
+        const parts = w.texts.get(htext)?.parts();
         if (!parts || index > parts.length - 1) return 0;
 
         parts[index].str.setTool(str);
+        return 1;
+    }
+    stratum_removeText2d(hspace: number, htext: number, index: number): NumBool {
+        if (index < 0) return 0;
+
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const text = w.texts.get(htext);
+        if (!text || index > text.parts().length - 1) return 0;
+
+        const parts = text.parts().filter((part, i) => {
+            if (i !== index) return true;
+            part.font.forceUnsub();
+            part.str.forceUnsub();
+            return false;
+        });
+        text.setParts(parts);
         return 1;
     }
 

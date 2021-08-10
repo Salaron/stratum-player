@@ -1,6 +1,7 @@
 import { TextElement2D, TextElement2DArgs } from "../elements/textElement2d";
 import { Scene } from "../scene";
 import { TextTool } from "../tools/textTool";
+import { TextToolPartTool } from "../tools/textToolPartTool";
 import { RendererSVG } from "./rendererSVG";
 import { TSpanSVG } from "./tspanSVG";
 
@@ -17,23 +18,31 @@ export class TextSVG extends TextElement2D {
 
     private tlength: number | null = null;
 
+    private prevParts: readonly TextToolPartTool[];
+
     constructor(scene: Scene, tool: TextTool, args: TextElement2DArgs = {}) {
         super(scene, tool, args);
-        const frag = document.createDocumentFragment();
-        this.spans = tool.parts.map<TSpanSVG>((part) => {
-            const span = new TSpanSVG(this, part);
-            span._spans.forEach((s) => frag.append(s));
-            return span;
-        });
+        this.prevParts = tool._parts;
         this._svg.setAttribute("dominant-baseline", "text-before-edge"); //фуррифокс
         this._svg.setAttribute("alignment-baseline", "text-before-edge");
         this._svg.setAttribute("letter-spacing", "-0.07");
         this._svg.style.setProperty("white-space", "pre");
         this._svg.style.setProperty("user-select", "none");
+        this.spans = this.createSpans(tool);
 
-        this._svg.appendChild(frag);
         this._updateBBox(args.x ?? 0, args.y ?? 0, args.width ?? this.actualWidth(), args.height ?? this.actualHeight());
         this._parent?._recalcBorders();
+    }
+
+    private createSpans(tool: TextTool): TSpanSVG[] {
+        const children: SVGTSpanElement[] = [];
+        this.spans = tool._parts.map<TSpanSVG>((part) => {
+            const span = new TSpanSVG(this, part);
+            span._subspans.forEach((s) => children.push(s));
+            return span;
+        });
+        this._svg.append(...children);
+        return this.spans;
     }
 
     actualWidth(): number {
@@ -54,7 +63,7 @@ export class TextSVG extends TextElement2D {
     actualHeight(): number {
         // return this.getBbox().height;
         let maxS = 0;
-        this.tool._tool.parts.forEach((p) => {
+        this.tool._tool._parts.forEach((p) => {
             const s = p.font._tool.size();
             if (s > maxS) maxS = s;
         });
@@ -72,6 +81,13 @@ export class TextSVG extends TextElement2D {
             }
         }
         if (!visible) return;
+
+        const newParts = this.tool._tool._parts;
+        if (this.prevParts !== newParts) {
+            this.prevParts = newParts;
+            this.spans.forEach((s) => s.delete());
+            this.spans = this.createSpans(this.tool._tool);
+        }
 
         let shapeChanged = false;
         this.spans.forEach((s) => {

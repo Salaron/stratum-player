@@ -143,7 +143,7 @@ export function createTextTools(scene: Scene, fonts: Map<number, FontTool>, stri
 export function copyTextTool(w: SceneWrapper, text: TextTool): TextTool {
     const handle = HandleMap.getFreeHandle(w.texts);
 
-    const data: TextToolPartData[] = text.parts.map((t) => ({
+    const data: TextToolPartData[] = text.parts().map((t) => ({
         font: copyFontTool(w, t.font.tool()),
         str: copyStringTool(w, t.str.tool()),
         fgColor: t.fgColor(),

@@ -42,7 +42,7 @@ function createTspan() {
 }
 
 export class TSpanSVG {
-    _spans: SVGTSpanElement[];
+    _subspans: SVGTSpanElement[];
     _prevFontVer = -1;
     _prevText = "";
     _prevFg = -1;
@@ -50,7 +50,7 @@ export class TSpanSVG {
 
     constructor(readonly owner: TextSVG, readonly part: TextToolPartTool) {
         const strs = part.str._tool.textParts();
-        this._spans = strs.map(() => createTspan());
+        this._subspans = strs.map(() => createTspan());
     }
 
     render(): boolean {
@@ -65,10 +65,10 @@ export class TSpanSVG {
 
             const strs = part.str._tool.textParts();
 
-            let diff = strs.length - this._spans.length;
+            let diff = strs.length - this._subspans.length;
 
             if (diff !== 0) {
-                this._spans.forEach((s) => {
+                this._subspans.forEach((s) => {
                     s.removeAttribute("x");
                     s.removeAttribute("dy");
                 });
@@ -77,21 +77,24 @@ export class TSpanSVG {
                 this._prevBg = -1;
 
                 if (diff > 0) {
+                    const subspansLen = this._subspans.length - 1;
+                    let wherePut = subspansLen > 0 ? this._subspans[subspansLen - 1] : this.owner._svg;
                     while (diff !== 0) {
                         const s = createTspan();
-                        this._spans.push(s);
-                        this.owner._svg.append(s);
+                        this._subspans.push(s);
+                        wherePut.after(s);
+                        wherePut = s;
                         --diff;
                     }
                 } else {
                     while (diff !== 0) {
-                        this._spans.pop()?.remove();
+                        this._subspans.pop()?.remove();
                         ++diff;
                     }
                 }
             }
 
-            this._spans.forEach((s, i) => {
+            this._subspans.forEach((s, i) => {
                 if (i > 0) {
                     s.setAttribute("x", "0px");
                     s.setAttribute("dy", `1.15em`);
@@ -110,7 +113,7 @@ export class TSpanSVG {
         if (this._prevFontVer !== part.font._ver) {
             this._prevFontVer = part.font._ver;
 
-            this._spans.forEach((s) => {
+            this._subspans.forEach((s) => {
                 s.setAttribute("font-family", font.fname());
                 // s.setAttribute("letter-spacing", f.spacing().toString());
                 s.setAttribute("font-size", font.size().toString());
@@ -125,7 +128,7 @@ export class TSpanSVG {
         if (this._prevFg !== fg) {
             this._prevFg = fg;
             const col = colorrefToCSSColor(fg);
-            this._spans.forEach((s) => s.setAttribute("fill", col));
+            this._subspans.forEach((s) => s.setAttribute("fill", col));
         }
 
         const bg = this.part.bgColor();
@@ -133,7 +136,7 @@ export class TSpanSVG {
             this._prevBg = bg;
             const col = colorrefToCSSColor(bg);
             if (col === "transparent") {
-                this._spans.forEach((s) => s.removeAttribute("filter"));
+                this._subspans.forEach((s) => s.removeAttribute("filter"));
             } else {
                 // const defs = (this.owner.scene as RendererSVG)._defs;
                 // const id = `bg_${bg}`;
@@ -143,10 +146,14 @@ export class TSpanSVG {
                 //     filter = createFilter(col, id);
                 //     defs.appendChild(filter);
                 // }
-                this._spans.forEach((s) => s.setAttribute("filter", `drop-shadow(0px 0px 6px ${col})`));
+                this._subspans.forEach((s) => s.setAttribute("filter", `drop-shadow(0px 0px 6px ${col})`));
                 // this._spans.forEach((s) => s.setAttribute("filter", `url(#${id})`));
             }
         }
         return shapeChanged;
+    }
+
+    delete(): void {
+        this._subspans.forEach((s) => s.remove());
     }
 }
