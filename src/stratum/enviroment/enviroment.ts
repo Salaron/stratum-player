@@ -1827,6 +1827,32 @@ export class Enviroment implements EnviromentFunctions {
         const bmp = this.scenes.get(hspace)?.objects.get(hobject);
         return bmp?.type === "image" && bmp.isTransparent ? bmp.image.tool().handle : 0;
     }
+    stratum_setDibObject2d(hspace: number, hobject: number, hdib: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const dib = w.dibs.get(hdib);
+        if (!dib) return 0;
+
+        const bmp = w.objects.get(hobject);
+        if (bmp?.type !== "image" || bmp.isTransparent) return 0;
+
+        bmp.image.setTool(dib);
+        return 1;
+    }
+    stratum_setDDibObject2d(hspace: number, hobject: number, hdib: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const ddib = w.doubleDibs.get(hdib);
+        if (!ddib) return 0;
+
+        const bmp = w.objects.get(hobject);
+        if (bmp?.type !== "image" || !bmp.isTransparent) return 0;
+
+        bmp.image.setTool(ddib);
+        return 1;
+    }
 
     stratum_rgbEx(r: number, g: number, b: number, type: number): number {
         return rgbToCref(r, g, b, type);
