@@ -1845,6 +1845,32 @@ export class Enviroment implements EnviromentFunctions {
         const bmp = this.scenes.get(hspace)?.objects.get(hobject);
         return bmp?.type === "image" && bmp.isTransparent ? bmp.image.tool().handle : 0;
     }
+    stratum_setDibObject2d(hspace: number, hobject: number, hdib: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const dib = w.dibs.get(hdib);
+        if (!dib) return 0;
+
+        const bmp = w.objects.get(hobject);
+        if (bmp?.type !== "image" || bmp.isTransparent) return 0;
+
+        bmp.image.setTool(dib);
+        return 1;
+    }
+    stratum_setDDibObject2d(hspace: number, hobject: number, hdib: number): NumBool {
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+
+        const ddib = w.doubleDibs.get(hdib);
+        if (!ddib) return 0;
+
+        const bmp = w.objects.get(hobject);
+        if (bmp?.type !== "image" || !bmp.isTransparent) return 0;
+
+        bmp.image.setTool(ddib);
+        return 1;
+    }
 
     stratum_rgbEx(r: number, g: number, b: number, type: number): number {
         return rgbToCref(r, g, b, type);
@@ -2770,6 +2796,10 @@ export class Enviroment implements EnviromentFunctions {
     stratum_mPut(q: number, i: number, j: number, value: number, flag: number): number {
         if (flag <= 0) return 0;
         return this.matrices.get(q)?.set(i, j, value) ?? 0;
+    }
+    stratum_mSum(q: number, flag: number): number {
+        if (flag <= 0) return 0;
+        return this.matrices.get(q)?.sum() ?? 0;
     }
     stratum_async_mEditor(q: number, flag: number): NumBool | Promise<NumBool> {
         if (flag <= 0) return 0;
