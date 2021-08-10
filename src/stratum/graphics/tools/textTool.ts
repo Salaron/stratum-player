@@ -16,9 +16,18 @@ export interface TextToolPartData {
 }
 
 export class TextTool extends SceneTool<TextTool> {
-    readonly parts: readonly TextToolPartTool[];
+    _parts: readonly TextToolPartTool[];
     constructor(scene: Scene, parts: TextToolPartData[], { handle }: TextToolArgs = {}) {
         super(scene, handle);
-        this.parts = parts?.map(({ bgColor, fgColor, font, str }) => new TextToolPartTool(scene, font, str, { bgColor, fgColor }));
+        this._parts = parts?.map(({ bgColor, fgColor, font, str }) => new TextToolPartTool(scene, font, str, { bgColor, fgColor }));
+    }
+
+    parts(): readonly TextToolPartTool[] {
+        return this._parts;
+    }
+
+    setParts(parts: readonly TextToolPartTool[]): this {
+        this._parts = parts;
+        return this;
     }
 }
