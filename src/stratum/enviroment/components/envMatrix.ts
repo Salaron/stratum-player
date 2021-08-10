@@ -39,6 +39,10 @@ export class EnvMatrix {
         return val;
     }
 
+    sum(): number {
+        return this.data.reduce((e, sum) => e + sum);
+    }
+
     fill(value: number): NumBool {
         this.data.fill(value);
         return 1;

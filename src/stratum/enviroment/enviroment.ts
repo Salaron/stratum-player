@@ -2779,6 +2779,10 @@ export class Enviroment implements EnviromentFunctions {
         if (flag <= 0) return 0;
         return this.matrices.get(q)?.set(i, j, value) ?? 0;
     }
+    stratum_mSum(q: number, flag: number): number {
+        if (flag <= 0) return 0;
+        return this.matrices.get(q)?.sum() ?? 0;
+    }
     stratum_async_mEditor(q: number, flag: number): NumBool | Promise<NumBool> {
         if (flag <= 0) return 0;
         throw Error("MEditor: редактор матриц не реализован");
