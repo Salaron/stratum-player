@@ -469,6 +469,7 @@ export class Enviroment implements EnviromentFunctions {
         const exp = new RegExp("^" + esc + "$", "i");
         let list = await dir.fs.list(exp);
 
+        const realType = "FILE_ATTRIBUTE";
         const data = list.map<EnvArrayStructElement>((f) => {
             const d = f.date();
             const data: [string, EnvArrayPrimitive][] = [
@@ -483,15 +484,12 @@ export class Enviroment implements EnviromentFunctions {
                 ["MINUTE", { type: "FLOAT", value: d.getMinutes() }],
                 ["SECOND", { type: "FLOAT", value: d.getSeconds() }],
             ];
-            return { type: "STRUCT", value: new Map(data) };
+            return { type: "STRUCT", realType, value: new Map(data) };
         });
 
-        const a = new EnvArray(data);
-
-        const type = "FILE_ATTRIBUTE";
-
         const handle = HandleMap.getFreeHandle(this.arrays);
-        this.arrays.set(handle, a);
+        this.arrays.set(handle, new EnvArray(data));
+
         return handle;
     }
 
@@ -2907,7 +2905,7 @@ export class Enviroment implements EnviromentFunctions {
             .vars()
             .toArray()
             .map<[string, VarType]>((v) => [v.name, v.type]);
-        return arr.insertClass(vdata);
+        return arr.insertClass(cl.name, vdata);
     }
     stratum_vDelete(handle: number, idx: number): NumBool {
         return this.arrays.get(handle)?.remove(idx) ?? 0;
