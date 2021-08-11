@@ -25,6 +25,7 @@ export type EnvArrayPrimitive = EnvArrayFloatElement | EnvArrayHandleElement | E
 
 export interface EnvArrayStructElement {
     type: "STRUCT";
+    realType: string;
     value: Map<string, EnvArrayPrimitive>;
 }
 
@@ -50,7 +51,7 @@ export class EnvArray {
         throw Error(`Неизвестный тип элемента: ${type}`);
     }
 
-    insertClass(data: [string, VarType][]): NumBool {
+    insertClass(type: string, data: [string, VarType][]): NumBool {
         const entries = data.map<[string, EnvArrayPrimitive]>((d) => {
             const name = d[0].toUpperCase();
             switch (d[1]) {
@@ -63,7 +64,7 @@ export class EnvArray {
             }
         });
 
-        this.fields.push({ type: "STRUCT", value: new Map(entries) });
+        this.fields.push({ type: "STRUCT", realType: type, value: new Map(entries) });
         return 1;
     }
 
@@ -93,7 +94,8 @@ export class EnvArray {
 
     type(idx: number): string {
         if (idx < 0 || idx > this.fields.length - 1) return "";
-        return this.fields[idx].type;
+        const f = this.fields[idx];
+        return f.type === "STRUCT" ? f.realType : f.type;
     }
 
     getFloat(idx: number, field: string): number {
