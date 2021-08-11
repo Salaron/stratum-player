@@ -45,6 +45,7 @@ export interface EnviromentFunctions extends EnviromentContextFunctions {
     createStream(dir: PathInfo, type: string, name: string, flags: string): number | Promise<number>;
     mSaveAs(dir: PathInfo, q: number, fileName: string, flag: number): NumBool | Promise<NumBool>;
     mLoad(dir: PathInfo, q: number, fileName: string, flag: number): number | Promise<number>;
+    getFileList(dir: PathInfo, path: string, attr: number): number | Promise<number>;
 
     setCapture(target: EventSubscriber, hspace: number, flags: number): void;
     subscribe(target: EventSubscriber, wnameOrHspace: string | number, obj2d: number, message: number, flags: number): void;

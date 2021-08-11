@@ -202,6 +202,10 @@ export class Project implements SchemaMemory, ProjectContextFunctions {
     stratum_getProjectDirectory(): string {
         return this.dir.toString();
     }
+
+    stratum_async_getFileList(dir: string, attr: number): number | Promise<number> {
+        return this.env.getFileList(this.dir, dir, attr);
+    }
     //#endregion
 }
 installContextFunctions(Project, "prj");
