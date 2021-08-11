@@ -807,7 +807,11 @@ export class Enviroment implements EnviromentFunctions {
             case 4:
                 const cmdPath = hyp.target;
                 if (!cmdPath) break;
-                console.warn(`Запуск команды ${prj.dir.resolve(cmdPath)} не реализован.`);
+                if (cmdPath.toUpperCase() === "CM_CLEARALL") {
+                    this._shouldQuit = true;
+                } else {
+                    console.warn(`Команда ${cmdPath} не реализована.`);
+                }
                 break;
             default:
                 console.warn("Неизвестный тип гиперперперехода");
