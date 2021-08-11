@@ -921,6 +921,7 @@ export class Enviroment implements EnviromentFunctions {
 
             children: new Set(),
             parent: null,
+            windowVisible: true,
             closed: false,
         };
 
@@ -1246,18 +1247,23 @@ export class Enviroment implements EnviromentFunctions {
         return 1;
     }
     stratum_showWindow(wname: string, flag: number): NumBool {
-        const wnd = this.windows.get(wname)?.wnd;
-        if (!wnd) return 0;
+        const w = this.windows.get(wname);
+        if (!w) return 0;
         switch (flag) {
             case Constant.SW_HIDE:
-                if (wnd.setVisibility) wnd.setVisibility(false);
+                if (w.wnd.setVisibility) w.wnd.setVisibility(false);
+                w.windowVisible = false;
                 break;
             case Constant.SW_SHOW:
             case Constant.SW_NORMAL:
-                if (wnd.setVisibility) wnd.setVisibility(true);
+                if (w.wnd.setVisibility) w.wnd.setVisibility(true);
+                w.windowVisible = true;
                 break;
         }
         return 1;
+    }
+    stratum_isWindowVisible(wname: string): NumBool {
+        return (this.windows.get(wname)?.windowVisible && 1) || 0;
     }
     stratum_closeWindow(wname: string): NumBool {
         const w = this.windows.get(wname);
