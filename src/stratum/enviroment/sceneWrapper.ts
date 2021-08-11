@@ -59,5 +59,6 @@ export interface SceneWrapper {
     children: Set<SceneWrapper>;
     parent: SceneWrapper | null;
 
+    windowVisible: boolean;
     closed: boolean;
 }
