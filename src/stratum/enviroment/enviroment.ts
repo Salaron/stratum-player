@@ -24,7 +24,7 @@ import { options } from "stratum/options";
 import { Project, Schema } from "stratum/project";
 import { EnviromentFunctions } from "stratum/project/enviromentFunctions";
 import { CursorRequestHandler, ErrorHandler, PathInfo, ShellHandler, WindowHost } from "stratum/stratum";
-import { EnvArray, EnvArraySortingAlgo } from "./components/envArray";
+import { EnvArray, EnvArrayPrimitive, EnvArraySortingAlgo, EnvArrayStructElement } from "./components/envArray";
 import { EnvMatrix } from "./components/envMatrix";
 import { EnvStream } from "./components/envStream";
 import { FrameController } from "./frameController";
@@ -455,6 +455,44 @@ export class Enviroment implements EnviromentFunctions {
                 return handle;
             })
             .catch(() => 0);
+    }
+
+    async getFileList(dir: PathInfo, path: string, attr: number): Promise<number> {
+        if (attr !== 0) console.warn(`Атрибут ${attr} в GetFileList игнорируется`);
+
+        const file = dir.resolve(path);
+        const esc = file
+            .toString()
+            .replace(/[-[\]{}()+?.,\\^$|#\s]/g, "\\$&")
+            .replace(/\*/, ".*");
+
+        const exp = new RegExp("^" + esc + "$", "i");
+        let list = await dir.fs.list(exp);
+
+        const data = list.map<EnvArrayStructElement>((f) => {
+            const d = f.date();
+            const data: [string, EnvArrayPrimitive][] = [
+                ["NAME", { type: "STRING", value: f.path().basename() }],
+                ["SIZE", { type: "FLOAT", value: f.size() }],
+                ["ATTR", { type: "FLOAT", value: 0 }],
+                ["YEAR", { type: "FLOAT", value: d.getFullYear() }],
+                ["MONTH", { type: "FLOAT", value: d.getMonth() + 1 }],
+                ["DAY", { type: "FLOAT", value: d.getDate() }],
+                ["DAYOFWEEK", { type: "FLOAT", value: d.getDay() }],
+                ["HOUR", { type: "FLOAT", value: d.getHours() }],
+                ["MINUTE", { type: "FLOAT", value: d.getMinutes() }],
+                ["SECOND", { type: "FLOAT", value: d.getSeconds() }],
+            ];
+            return { type: "STRUCT", value: new Map(data) };
+        });
+
+        const a = new EnvArray(data);
+
+        const type = "FILE_ATTRIBUTE";
+
+        const handle = HandleMap.getFreeHandle(this.arrays);
+        this.arrays.set(handle, a);
+        return handle;
     }
 
     private handlePointer(w: SceneWrapper, evt: ScenePointerEvent): void {

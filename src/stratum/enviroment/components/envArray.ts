@@ -6,32 +6,32 @@ export interface EnvArraySortingAlgo {
     field: string;
 }
 
-interface EnvArrayFloatElement {
+export interface EnvArrayFloatElement {
     type: "FLOAT";
     value: number;
 }
 
-interface EnvArrayHandleElement {
+export interface EnvArrayHandleElement {
     type: "HANDLE";
     value: number;
 }
 
-interface EnvArrayStringElement {
+export interface EnvArrayStringElement {
     type: "STRING";
     value: string;
 }
 
-type EnvArrayPrimitive = EnvArrayFloatElement | EnvArrayHandleElement | EnvArrayStringElement;
+export type EnvArrayPrimitive = EnvArrayFloatElement | EnvArrayHandleElement | EnvArrayStringElement;
 
-interface EnvArrayStructElement {
+export interface EnvArrayStructElement {
     type: "STRUCT";
     value: Map<string, EnvArrayPrimitive>;
 }
 
 export class EnvArray {
     private fields: (EnvArrayPrimitive | EnvArrayStructElement)[];
-    constructor() {
-        this.fields = [];
+    constructor(data?: EnvArrayStructElement[]) {
+        this.fields = data ?? [];
     }
 
     insert(type: "FLOAT" | "HANDLE" | "STRING"): NumBool {
