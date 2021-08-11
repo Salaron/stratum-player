@@ -1,10 +1,10 @@
-import { PathInfo } from "stratum";
+import { FileInfo, PathInfo } from "stratum";
 import { PathObject } from "./pathObject";
 import { RealZipFS } from "./realZipfs";
 import { LazyBuffer, ZipFile } from "./zipFile";
 
 const pathErr = (path: PathInfo) => Error(`Невозможно создать каталог ${path.toString()} - по этому пути уже существует файл.`);
-export class ZipDir {
+export class ZipDir implements FileInfo {
     readonly isDir = true;
     private readonly nodes = new Map<string, ZipDir | ZipFile>();
     // private readonly fs: ZipFS;
@@ -14,7 +14,9 @@ export class ZipDir {
 
     readonly fs: RealZipFS;
 
-    constructor(private localName: string, parent: RealZipFS | ZipDir) {
+    readonly _date = new Date();
+
+    constructor(private localName: string, readonly parent: RealZipFS | ZipDir) {
         if (parent instanceof ZipDir) {
             // this.fs = parent.fs;
             // this._parent = parent;
@@ -29,6 +31,18 @@ export class ZipDir {
             this.pinfo = new PathObject(parent, localName);
             this.fs = parent;
         }
+    }
+
+    path(): PathObject {
+        return this.pinfo;
+    }
+
+    size(): number {
+        return 0;
+    }
+
+    date(): Date {
+        return this._date;
     }
 
     getDir(path: ReadonlyArray<string>): ZipDir | null {
@@ -122,6 +136,18 @@ export class ZipDir {
                 continue;
             }
             if (!regexp || regexp.test(node.pinfo.toString())) yield node.pinfo;
+        }
+    }
+
+    *list(regexp: RegExp): IterableIterator<FileInfo> {
+        // FIXME: сделать лучше
+        if (regexp.test(this.pinfo.toString() + "\\" + ".")) yield new ZipDir(".", this);
+        if (regexp.test(this.pinfo.toString() + "\\" + "..")) yield new ZipDir("..", this);
+        for (const node of this.nodes.values()) {
+            if (node.isDir) {
+                yield* node.list(regexp);
+            }
+            if (regexp.test(node.pinfo.toString())) yield node;
         }
     }
 }

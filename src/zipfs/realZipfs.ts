@@ -1,5 +1,5 @@
 import { loadAsync } from "jszip";
-import { FileUpdateHandler, OpenZipOptions, PathInfo, ReadWriteFile, ZipFS, ZipSource } from "stratum";
+import { FileInfo, FileUpdateHandler, OpenZipOptions, PathInfo, ReadWriteFile, ZipFS, ZipSource } from "stratum";
 import { PathObject } from "./pathObject";
 import { ZipDir } from "./zipDir";
 
@@ -128,6 +128,16 @@ export class RealZipFS implements ZipFS {
     file(path: PathInfo): ReadWriteFile | null {
         const f = this.getFileOrDir(path);
         return f && !f.isDir ? f : null;
+    }
+
+    list(regExp: RegExp): Promise<FileInfo[]> {
+        const res: FileInfo[] = [];
+
+        for (const disk of this.disks.values()) {
+            res.push(...disk.list(regExp));
+        }
+
+        return Promise.resolve(res);
     }
 
     on(event: "write", handler: FileUpdateHandler): this {

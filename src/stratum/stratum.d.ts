@@ -30,6 +30,18 @@ export interface PathInfo {
     toString(): string;
 }
 
+export interface FileInfo {
+    /**
+     * Путь к файлу.
+     */
+    path(): PathInfo;
+    /**
+     * Размер файла.
+     */
+    size(): number;
+    date(): Date;
+}
+
 export interface ReadWriteFile {
     /**
      * Возвращает содержимое файла.
@@ -77,6 +89,11 @@ export interface FileSystem {
      * @returns Был ли создан файл?
      */
     createFile(path: PathInfo): Promise<ReadWriteFile | null>;
+
+    /**
+     * Возвращает список файлов и папок в директории.
+     */
+    list(exp: RegExp): Promise<FileInfo[]>;
 }
 
 export interface PlayerOptions {}
