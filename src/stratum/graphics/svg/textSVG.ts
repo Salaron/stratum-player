@@ -2,6 +2,7 @@ import { TextElement2D, TextElement2DArgs } from "../elements/textElement2d";
 import { Scene } from "../scene";
 import { TextTool } from "../tools/textTool";
 import { TextToolPartTool } from "../tools/textToolPartTool";
+import { FontSVG } from "./fontSVG";
 import { RendererSVG } from "./rendererSVG";
 import { TSpanSVG } from "./tspanSVG";
 
@@ -64,7 +65,7 @@ export class TextSVG extends TextElement2D {
         // return this.getBbox().height;
         let maxS = 0;
         this.tool._tool._parts.forEach((p) => {
-            const s = p.font._tool.size();
+            const s = (p.font._tool as FontSVG).realSize();
             if (s > maxS) maxS = s;
         });
         return maxS * 1.15;

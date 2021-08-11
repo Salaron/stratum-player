@@ -44,6 +44,10 @@ export class FontSVG extends FontTool {
     //     return this.scaleThis() ? this.size() + 1 : this.size() - 1;
     // }
 
+    realSize() {
+        return this._size || 15.940224159402327;
+    }
+
     fname(): string {
         this.scaleThis();
         return this._realName;
