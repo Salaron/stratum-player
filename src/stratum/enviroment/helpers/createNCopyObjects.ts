@@ -151,9 +151,10 @@ export function createElements(scene: Scene, tools: EnviromentElementsTools, ele
     return objects;
 }
 
-export function copyElement(w: SceneWrapper, obj: SceneElement): SceneElement {
+export function copyElement(w: SceneWrapper, obj: SceneElement, primaryMap: WeakMap<PrimaryElement, PrimaryElement>): SceneElement {
     if (obj.type === "group") {
-        const children = obj.children().map((c) => copyElement(w, c as SceneElement));
+        const children = obj.children().map((c) => copyElement(w, c as SceneElement, primaryMap));
+
         const handle = HandleMap.getFreeHandle(w.objects);
         const group = new GroupElement2D(w.scene, {
             handle,
@@ -246,8 +247,8 @@ export function copyElement(w: SceneWrapper, obj: SceneElement): SceneElement {
         }
     }
 
+    primaryMap.set(obj, copy);
     w.objects.set(handle, copy);
-    w.scene.setElements(w.scene.elements().concat(copy));
     return copy;
 }
 

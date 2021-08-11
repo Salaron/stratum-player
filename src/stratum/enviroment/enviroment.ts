@@ -44,6 +44,11 @@ interface EnviromentCaptureTarget {
     receiver: EventSubscriber;
 }
 
+interface EnviromentCopiedObjectState {
+    obj: SceneElement;
+    elements: readonly PrimaryElement[];
+}
+
 export interface EnviromentHandlers {
     closed: Set<Function>;
     error: Set<ErrorHandler>;
@@ -69,7 +74,7 @@ export class Enviroment implements EnviromentFunctions {
     private _isWaiting: boolean = false;
     private loading: Promise<void> | null = null;
     private lastPrimary: number = 0;
-    private copied: SceneElement | null = null;
+    private copied: EnviromentCopiedObjectState | null = null;
 
     private cursorOverHyp: boolean = false;
     private currentCursor = "default";
@@ -1939,9 +1944,11 @@ export class Enviroment implements EnviromentFunctions {
     // Функции для работы с графическими объектами
     //
     stratum_copyToClipboard2d(hspace: number, hobject: number): NumBool {
-        const obj = this.scenes.get(hspace)?.objects.get(hobject);
+        const w = this.scenes.get(hspace);
+        if (!w) return 0;
+        const obj = w.objects.get(hobject);
         if (!obj) return 0;
-        this.copied = obj;
+        this.copied = { obj, elements: w.scene.elements() };
         return 1;
     }
     stratum_pasteFromClipboard2d(hspace: number, x: number, y: number, flags: number): number {
@@ -1949,17 +1956,29 @@ export class Enviroment implements EnviromentFunctions {
         const wrapper = this.scenes.get(hspace);
         if (!wrapper) return 0;
 
-        const obj = copyElement(wrapper, this.copied);
+        const map = new WeakMap<PrimaryElement, PrimaryElement>();
+        const copy = copyElement(wrapper, this.copied.obj, map);
+        let res: PrimaryElement[] | PrimaryElement;
+        if (copy.type === "group") {
+            res = [];
+            this.copied.elements.forEach((e) => {
+                const obj = map.get(e);
+                if (obj) (res as PrimaryElement[]).push(obj);
+            });
+        } else {
+            res = copy;
+        }
+        wrapper.scene.setElements(wrapper.scene.elements().concat(res));
 
         const mat = wrapper.matrix;
         if (!mat) {
-            return obj.move(x, y).handle;
+            return copy.move(x, y).handle;
         }
 
         const w = x * mat[2] + y * mat[5] + mat[8];
         const newX = (x * mat[0] + y * mat[3] + mat[6]) / w;
         const newY = (x * mat[1] + y * mat[4] + mat[7]) / w;
-        return obj.move(newX, newY).handle;
+        return copy.move(newX, newY).handle;
     }
     stratum_getNextObject2d(hspace: number, hobject: number): number {
         const w = this.scenes.get(hspace);
