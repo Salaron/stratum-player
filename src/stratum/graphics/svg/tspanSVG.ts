@@ -116,7 +116,7 @@ export class TSpanSVG {
             this._subspans.forEach((s) => {
                 s.setAttribute("font-family", font.fname());
                 // s.setAttribute("letter-spacing", f.spacing().toString());
-                s.setAttribute("font-size", font.size().toString());
+                s.setAttribute("font-size", font.realSize().toString());
                 s.setAttribute("font-style", font.fstyle());
                 s.setAttribute("text-decoration", font.tdecoration());
                 s.setAttribute("font-weight", font.fweight());
