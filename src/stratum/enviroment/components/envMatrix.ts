@@ -24,7 +24,7 @@ export class EnvMatrix {
         this.data = args.data ? new Float64Array(args.data) : new Float64Array(this.rows * this.cols);
     }
 
-    isSquare() {
+    isSquare(): boolean {
         return this.cols === this.rows;
     }
 

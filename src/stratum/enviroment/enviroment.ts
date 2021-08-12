@@ -2875,7 +2875,9 @@ export class Enviroment implements EnviromentFunctions {
     }
     stratum_mDet(q: number, flag: number): number {
         if (flag <= 0) return 0;
-        return this.matrices.get(q)?.det() ?? 0;
+        const m = this.matrices.get(q);
+        if (!m || !m.isSquare()) return 0;
+        return m.det();
     }
     stratum_mSum(q: number, flag: number): number {
         if (flag <= 0) return 0;
