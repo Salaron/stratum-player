@@ -354,11 +354,12 @@ export class Enviroment implements EnviromentFunctions {
             .catch(() => callback());
     }
 
-    private readImage(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+    private readImage(dir: PathInfo, hspace: number, fileName: string, maybeTransparent: boolean): number | Promise<number> {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        return readFile(dir.resolve(fileName), "image")
+        const path = dir.resolve(fileName);
+        return (maybeTransparent ? readFile(path, "dbm") : readFile(path, "bmp"))
             .then((img) => {
                 const handle = HandleMap.getFreeHandle(w.dibs);
                 (img.transparent ? w.doubleDibs : w.dibs).set(handle, new graphicsImpl.dib(w.scene, img.img, { handle }));
@@ -368,10 +369,10 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        return this.readImage(dir, hspace, fileName);
+        return this.readImage(dir, hspace, fileName, false);
     }
     createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        return this.readImage(dir, hspace, fileName);
+        return this.readImage(dir, hspace, fileName, true);
     }
 
     private updateCursor(): void {
