@@ -37,6 +37,7 @@ interface RendererSVGHandlers {
 export class RendererSVG extends Scene implements EventListenerObject {
     private static scenes = new Set<RendererSVG>();
     private static updater = new SmoothExecutor();
+    private static focusedInput: InputElement2D | null = null;
 
     private static redrawAll(): boolean {
         RendererSVG.scenes.forEach((w) => w.render());
@@ -54,6 +55,19 @@ export class RendererSVG extends Scene implements EventListenerObject {
         const code = eventCodeToWinDigit.get(evt.code);
         if (typeof code !== "undefined") {
             Scene.keyState[code] = evt.type === "keydown" ? 1 : 0;
+        }
+
+        const inp = RendererSVG.focusedInput;
+        if (inp && !evt.isTrusted) {
+            if (evt.key.length === 1) {
+                (inp as InputSVG)._html.value += evt.key;
+            } else if (evt.code === "Space") {
+                (inp as InputSVG)._html.value += " ";
+            } else if (evt.code === "Backspace") {
+                const v = (inp as InputSVG)._html.value;
+                (inp as InputSVG)._html.value = v.substring(0, v.length - 1);
+            }
+            (inp.scene as RendererSVG)._dispatchInputEvent(inp, new InputEvent("input"));
         }
 
         const realCode = code ?? 0;
@@ -80,7 +94,9 @@ export class RendererSVG extends Scene implements EventListenerObject {
         }
 
         if (evt.type === "pointerdown") {
+            if (!RendererSVG.currentScene) return;
             RendererSVG.focusedScene = RendererSVG.currentScene;
+            RendererSVG.focusedInput = null;
         }
         // На тачпадах событие pointerdown также генерирует pointermove.
         // Таким образом обходим эту проблему.
@@ -342,9 +358,12 @@ export class RendererSVG extends Scene implements EventListenerObject {
     _dispatchInputEvent(element: InputElement2D, evt: Event) {
         switch (evt.type) {
             case "input":
+                break;
             case "blur":
+                if (element === RendererSVG.focusedInput) RendererSVG.focusedInput = null;
                 break;
             case "focus":
+                RendererSVG.focusedInput = element;
                 RendererSVG.focusedScene = null;
                 break;
             default:
