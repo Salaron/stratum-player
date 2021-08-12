@@ -352,11 +352,12 @@ export class Enviroment implements EnviromentFunctions {
             .then((vdr) => callback(vdr))
             .catch(() => callback());
     }
-    createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+
+    private readImage(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        return readFile(dir.resolve(fileName), "bmp")
+        return readFile(dir.resolve(fileName), "image")
             .then((img) => {
                 const handle = HandleMap.getFreeHandle(w.dibs);
                 (img.transparent ? w.doubleDibs : w.dibs).set(handle, new graphicsImpl.dib(w.scene, img.img, { handle }));
@@ -364,17 +365,12 @@ export class Enviroment implements EnviromentFunctions {
             })
             .catch(() => 0);
     }
-    createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        const w = this.scenes.get(hspace);
-        if (!w) return 0;
 
-        return readFile(dir.resolve(fileName), "dbm")
-            .then((img) => {
-                const handle = HandleMap.getFreeHandle(w.doubleDibs);
-                w.doubleDibs.set(handle, new graphicsImpl.dib(w.scene, img, { handle }));
-                return handle;
-            })
-            .catch(() => 0);
+    createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+        return this.readImage(dir, hspace, fileName);
+    }
+    createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+        return this.readImage(dir, hspace, fileName);
     }
 
     private updateCursor(): void {
