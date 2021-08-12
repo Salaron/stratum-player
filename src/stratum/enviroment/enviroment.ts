@@ -113,6 +113,7 @@ export class Enviroment implements EnviromentFunctions {
                 return this.closeAllRes();
             }
             prj = this.projects[prjIdx - 1];
+            this.restoreProjectWindows(prj);
         }
 
         return prj.root.compute();
@@ -352,11 +353,12 @@ export class Enviroment implements EnviromentFunctions {
             .then((vdr) => callback(vdr))
             .catch(() => callback());
     }
-    createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+
+    private readImage(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        return readFile(dir.resolve(fileName), "bmp")
+        return readFile(dir.resolve(fileName), "image")
             .then((img) => {
                 const handle = HandleMap.getFreeHandle(w.dibs);
                 (img.transparent ? w.doubleDibs : w.dibs).set(handle, new graphicsImpl.dib(w.scene, img.img, { handle }));
@@ -364,17 +366,12 @@ export class Enviroment implements EnviromentFunctions {
             })
             .catch(() => 0);
     }
-    createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
-        const w = this.scenes.get(hspace);
-        if (!w) return 0;
 
-        return readFile(dir.resolve(fileName), "dbm")
-            .then((img) => {
-                const handle = HandleMap.getFreeHandle(w.doubleDibs);
-                w.doubleDibs.set(handle, new graphicsImpl.dib(w.scene, img, { handle }));
-                return handle;
-            })
-            .catch(() => 0);
+    createDIB2d(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+        return this.readImage(dir, hspace, fileName);
+    }
+    createDoubleDib2D(dir: PathInfo, hspace: number, fileName: string): number | Promise<number> {
+        return this.readImage(dir, hspace, fileName);
     }
 
     private updateCursor(): void {
@@ -833,12 +830,19 @@ export class Enviroment implements EnviromentFunctions {
             case 1:
                 const exePath = hyp.target;
                 if (!exePath) break;
-                console.warn(`Запуск Windows приложения ${prj.dir.resolve(exePath)} не реализован.`);
+                const idx = exePath.lastIndexOf(".exe");
+                const realPath = idx < 0 ? exePath : exePath.substring(0, idx);
+                this.handlers.shell.forEach((h) => h(realPath, "", "", 0));
                 break;
             // Открыть проект
             case 2:
                 const prjPath = hyp.target;
                 if (!prjPath) break;
+
+                if (hyp.params?.toUpperCase().includes("/HIDEWINDOWS")) {
+                    this.hideProjectWindows(prj);
+                }
+
                 this.loading = this.loadProject(prj.dir.resolve(prjPath));
                 break;
             // Ничего не делать.
@@ -968,6 +972,7 @@ export class Enviroment implements EnviromentFunctions {
             parent: null,
             windowVisible: true,
             closed: false,
+            temporaryHidden: false,
         };
 
         if (wnd.on) {
@@ -1033,6 +1038,24 @@ export class Enviroment implements EnviromentFunctions {
             if (w.prj === prj) this.markClosed(w);
         });
         this.removeClosed(true);
+    }
+
+    private hideProjectWindows(prj: Project): void {
+        this.windows.forEach((w) => {
+            if (w.prj === prj && w.windowVisible && w.wnd.setVisibility) {
+                w.wnd.setVisibility((w.windowVisible = false));
+                w.temporaryHidden = true;
+            }
+        });
+    }
+
+    private restoreProjectWindows(prj: Project): void {
+        this.windows.forEach((w) => {
+            if (w.prj === prj && w.temporaryHidden && w.wnd.setVisibility) {
+                w.wnd.setVisibility((w.windowVisible = true));
+                w.temporaryHidden = false;
+            }
+        });
     }
 
     private closePopups(except: SceneWrapper): void {

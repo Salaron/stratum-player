@@ -1,3 +1,4 @@
+import { readDbmFile } from "stratum/fileFormats/bmp";
 import { DibToolImage } from "stratum/fileFormats/bmp/dibToolImage";
 import { BinaryReader } from "stratum/helpers/binaryReader";
 
@@ -12,21 +13,28 @@ export function readImageFile(reader: BinaryReader, ext: string): Promise<DibToo
     let type: BlobType;
     let transparent: boolean;
     switch (ext) {
-        case "jpg":
-        case "jpeg":
+        case "JPG":
+        case "JPEG":
             type = "image/jpeg";
             transparent = false;
             break;
-        case "gif":
+        case "GIF":
             type = "image/gif";
             transparent = true;
             break;
-        case "png":
+        case "PNG":
             type = "image/png";
             transparent = true;
             break;
-        case "tga":
+        case "TGA":
             throw Error("Изображения типа tga не поддерживаются");
+        case "DBM": {
+            const res: DibToolImageExtended = {
+                transparent: true,
+                img: readDbmFile(reader),
+            };
+            return Promise.resolve(res);
+        }
         default:
             type = "image/bmp";
             transparent = false;
