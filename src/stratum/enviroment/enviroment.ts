@@ -2912,7 +2912,7 @@ export class Enviroment implements EnviromentFunctions {
         const m1 = this.matrices.get(q1);
         const m2 = this.matrices.get(q2);
         if (!m1 || !m2) return 0;
-        
+
         const resultMatrix = m1.mul(m2);
         if (resultMatrix === null) return 0;
 

@@ -56,7 +56,7 @@ export class EnvMatrix {
             cols,
             rows,
             minH: this.minH,
-            minV: this.minV
+            minV: this.minV,
         });
 
         for (let i = 0; i < this.rows; i++) {
@@ -73,7 +73,7 @@ export class EnvMatrix {
     }
 
     det(): number {
-        if (!this.isSquare()) throw new Error("Not a square matrix")
+        if (!this.isSquare()) throw new Error("Not a square matrix");
         if (this.rows === 1) return this.data[0];
         if (this.rows === 2) {
             return this.data[0] * this.data[3] - this.data[1] * this.data[2];
@@ -122,13 +122,13 @@ export class EnvMatrix {
             rows: this.rows,
             minH: 0,
             minV: 0,
-            data: Array.from(this.data)
+            data: Array.from(this.data),
         });
         const result = new EnvMatrix({
             cols: this.cols,
             rows: this.rows,
             minH: 0,
-            minV: 0
+            minV: 0,
         });
 
         for (let i = 0; i < N; i++) {
