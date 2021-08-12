@@ -831,7 +831,9 @@ export class Enviroment implements EnviromentFunctions {
             case 1:
                 const exePath = hyp.target;
                 if (!exePath) break;
-                console.warn(`Запуск Windows приложения ${prj.dir.resolve(exePath)} не реализован.`);
+                const idx = exePath.lastIndexOf(".exe");
+                const realPath = idx < 0 ? exePath : exePath.substring(0, idx);
+                this.handlers.shell.forEach((h) => h(realPath, "", "", 0));
                 break;
             // Открыть проект
             case 2:
