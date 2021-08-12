@@ -10,10 +10,11 @@ export function readFile(file: PathInfo, type: "prj"): Promise<ProjectInfo>;
 export function readFile(file: PathInfo, type: "stt"): Promise<VariableSet>;
 export function readFile(file: PathInfo, type: "vdr"): Promise<VectorDrawing>;
 export function readFile(file: PathInfo, type: "mat"): Promise<FloatMatrix>;
-export function readFile(file: PathInfo, type: "image"): Promise<DibToolImageExtended>;
+export function readFile(file: PathInfo, type: "bmp"): Promise<DibToolImageExtended>;
+export function readFile(file: PathInfo, type: "dbm"): Promise<DibToolImageExtended>;
 export async function readFile(
     file: PathInfo,
-    type: "prj" | "stt" | "vdr" | "mat" | "image"
+    type: "prj" | "stt" | "vdr" | "mat" | "bmp" | "dbm"
 ): Promise<ProjectInfo | VariableSet | VectorDrawing | FloatMatrix | DibToolImageExtended | null> {
     const path = file.toString();
     const buf = await file.fs.arraybuffer(file);
@@ -29,10 +30,9 @@ export async function readFile(
                 return readVdrFile(r, { origin: "file", name: file.toString() });
             case "mat":
                 return readMatFile(r);
-            case "image": {
-                const ext = path.substring(path.lastIndexOf(".") + 1).toUpperCase();
-                return readImageFile(r, ext);
-            }
+            case "bmp":
+            case "dbm":
+                return readImageFile(r, type === "dbm");
         }
     } catch (err) {
         console.warn(`Ошибка чтения ${file.toString()} как .${type.toUpperCase()}`);

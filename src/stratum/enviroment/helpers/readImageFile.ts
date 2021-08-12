@@ -9,36 +9,42 @@ export interface DibToolImageExtended {
     transparent: boolean;
 }
 
-export function readImageFile(reader: BinaryReader, ext: string): Promise<DibToolImageExtended> {
+export function readImageFile(reader: BinaryReader, maybeTransparent: boolean): Promise<DibToolImageExtended> {
+    const _pos = reader.pos();
+    const sign = reader.uint16();
+    reader.seek(_pos);
+
     let type: BlobType;
     let transparent: boolean;
-    switch (ext) {
-        case "JPG":
-        case "JPEG":
+    switch (sign) {
+        case 0xd8ff:
             type = "image/jpeg";
             transparent = false;
             break;
-        case "GIF":
+        case 0x4947:
             type = "image/gif";
             transparent = true;
             break;
-        case "PNG":
+        case 0x5089:
             type = "image/png";
             transparent = true;
             break;
-        case "TGA":
+        case 0x0000:
             throw Error("Изображения типа tga не поддерживаются");
-        case "DBM": {
-            const res: DibToolImageExtended = {
-                transparent: true,
-                img: readDbmFile(reader),
-            };
-            return Promise.resolve(res);
-        }
-        default:
+        case 0x4d42: {
+            if (maybeTransparent) {
+                const res: DibToolImageExtended = {
+                    transparent: true,
+                    img: readDbmFile(reader),
+                };
+                return Promise.resolve(res);
+            }
             type = "image/bmp";
             transparent = false;
             break;
+        }
+        default:
+            throw Error(`Неизвестная сигнатура: ${sign}`);
     }
 
     const arrayBufferView = new Uint8Array(reader.buffer());
