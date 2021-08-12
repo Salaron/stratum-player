@@ -113,6 +113,7 @@ export class Enviroment implements EnviromentFunctions {
                 return this.closeAllRes();
             }
             prj = this.projects[prjIdx - 1];
+            this.restoreProjectWindows(prj);
         }
 
         return prj.root.compute();
@@ -839,6 +840,11 @@ export class Enviroment implements EnviromentFunctions {
             case 2:
                 const prjPath = hyp.target;
                 if (!prjPath) break;
+
+                if (hyp.params?.toUpperCase().includes("/HIDEWINDOWS")) {
+                    this.hideProjectWindows(prj);
+                }
+
                 this.loading = this.loadProject(prj.dir.resolve(prjPath));
                 break;
             // Ничего не делать.
@@ -968,6 +974,7 @@ export class Enviroment implements EnviromentFunctions {
             parent: null,
             windowVisible: true,
             closed: false,
+            temporaryHidden: false,
         };
 
         if (wnd.on) {
@@ -1033,6 +1040,24 @@ export class Enviroment implements EnviromentFunctions {
             if (w.prj === prj) this.markClosed(w);
         });
         this.removeClosed(true);
+    }
+
+    private hideProjectWindows(prj: Project): void {
+        this.windows.forEach((w) => {
+            if (w.prj === prj && w.windowVisible && w.wnd.setVisibility) {
+                w.wnd.setVisibility((w.windowVisible = false));
+                w.temporaryHidden = true;
+            }
+        });
+    }
+
+    private restoreProjectWindows(prj: Project): void {
+        this.windows.forEach((w) => {
+            if (w.prj === prj && w.temporaryHidden && w.wnd.setVisibility) {
+                w.wnd.setVisibility((w.windowVisible = true));
+                w.temporaryHidden = false;
+            }
+        });
     }
 
     private closePopups(except: SceneWrapper): void {

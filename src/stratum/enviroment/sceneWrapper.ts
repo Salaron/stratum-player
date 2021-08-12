@@ -61,4 +61,5 @@ export interface SceneWrapper {
 
     windowVisible: boolean;
     closed: boolean;
+    temporaryHidden: boolean;
 }
