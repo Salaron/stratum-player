@@ -2862,9 +2862,37 @@ export class Enviroment implements EnviromentFunctions {
         if (flag <= 0) return 0;
         return this.matrices.get(q)?.set(i, j, value) ?? 0;
     }
+    stratum_mObr(q1: number, q2: number, flag: number): number {
+        if (flag <= 0) return 0;
+        const m = this.matrices.get(q1);
+        if (!m) return 0;
+
+        const resultMatrix = m.obr();
+        if (!resultMatrix) return 0;
+
+        this.matrices.set(q2, resultMatrix);
+        return q2;
+    }
+    stratum_mDet(q: number, flag: number): number {
+        if (flag <= 0) return 0;
+        return this.matrices.get(q)?.det() ?? 0;
+    }
     stratum_mSum(q: number, flag: number): number {
         if (flag <= 0) return 0;
         return this.matrices.get(q)?.sum() ?? 0;
+    }
+    stratum_mMul(q1: number, q2: number, q3: number, flag: number) {
+        if (flag <= 0) return 0;
+
+        const m1 = this.matrices.get(q1);
+        const m2 = this.matrices.get(q2);
+        if (!m1 || !m2) return 0;
+        
+        const resultMatrix = m1.mul(m2);
+        if (resultMatrix === null) return 0;
+
+        this.matrices.set(q3, resultMatrix);
+        return q3;
     }
     stratum_async_mEditor(q: number, flag: number): NumBool | Promise<NumBool> {
         if (flag <= 0) return 0;
