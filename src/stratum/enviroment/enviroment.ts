@@ -2881,7 +2881,7 @@ export class Enviroment implements EnviromentFunctions {
         if (flag <= 0) return 0;
         return this.matrices.get(q)?.sum() ?? 0;
     }
-    stratum_mMul(q1: number, q2: number, q3: number, flag: number) {
+    stratum_mMul(q1: number, q2: number, q3: number, flag: number): number {
         if (flag <= 0) return 0;
 
         const m1 = this.matrices.get(q1);
