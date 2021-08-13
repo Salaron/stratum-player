@@ -133,6 +133,10 @@ export class Project implements SchemaMemory, ProjectContextFunctions {
         return this._shouldClose;
     }
 
+    stop(): void {
+        this._shouldClose = true;
+    }
+
     //#region Реализации функций.
     stratum_closeAll(): void {
         this._shouldClose = true;
