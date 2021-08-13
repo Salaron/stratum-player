@@ -444,10 +444,17 @@ export class Enviroment implements EnviromentFunctions {
         }
         throw Error(`Поток типа ${t} не поддерживается`);
     }
-    mSaveAs(dir: PathInfo, q: number, fileName: string, flag: number): NumBool | Promise<NumBool> {
+
+    async mSaveAs(dir: PathInfo, q: number, fileName: string, flag: number): Promise<NumBool> {
         if (flag <= 0) return 0;
-        throw Error("Сохранение матриц не реализовано");
+
+        const m = this.matrices.get(q);
+        if (!m) return 0;
+
+        const file = await dir.fs.createFile(dir.resolve(fileName), m.toArrayBuffer());
+        return file ? 1 : 0;
     }
+
     mLoad(dir: PathInfo, q: number, fileName: string, flag: number): number | Promise<number> {
         if (flag <= 0) return 0;
 

@@ -210,5 +210,18 @@ export class EnvMatrix {
 
         return 1;
     }
+
+    toArrayBuffer(): ArrayBuffer {
+        const size = 34 + this.data.byteLength;
+        const buf = new ArrayBuffer(size);
+        const r = new DataView(buf);
+
+        r.setUint16(0, 0x0c, true);
+        [0x4d, 0x41, 0x54, 0x52, 0x49, 0x58, 0x20, 0x46, 0x49, 0x4c, 0x45, 0x2e].forEach((v, i) => r.setUint8(2 + i, v));
+        [this.rows, this.cols, this.minV, this.minH].forEach((v, i) => r.setInt32(14 + i * 4, v, true));
+        //пропускаем два uint16 нуля
+        this.data.forEach((v, i) => r.setFloat64(34 + i * 8, v, true));
+
+        return buf;
+    }
 }
-// FLOAT MLoad(FLOAT Q, STRING FileName, FLOAT Flag)
