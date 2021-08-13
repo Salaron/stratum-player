@@ -213,7 +213,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
 
             if (this.htmlOrder.length > 0) {
                 RendererSVG.reoderNRender(this.rootHTML, htmls, this.htmlOrder);
-            } else {
+            } else if (htmls.length > 0) {
                 this.rootHTML.append(...htmls.map((s) => s._html));
             }
             this.htmlOrder = htmls;
