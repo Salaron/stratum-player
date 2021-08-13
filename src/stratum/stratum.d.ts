@@ -88,7 +88,7 @@ export interface FileSystem {
      * Создает файл.
      * @returns Был ли создан файл?
      */
-    createFile(path: PathInfo): Promise<ReadWriteFile | null>;
+    createFile(path: PathInfo, data?: ArrayBuffer): Promise<ReadWriteFile | null>;
 
     /**
      * Возвращает список файлов и папок в директории.

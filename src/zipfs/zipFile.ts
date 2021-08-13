@@ -44,12 +44,6 @@ export class ZipFile implements ReadWriteFile, FileInfo {
 
     async write(data: ArrayBuffer): Promise<boolean> {
         this.buf = data;
-        const promises = [...this.parent.fs._updateHandlers].map((h) => h(this.pinfo, data));
-        try {
-            await Promise.all(promises);
-            return true;
-        } catch {
-            return false;
-        }
+        return this.parent.fs._dispatchWriteEvent(this.pinfo, data);
     }
 }
