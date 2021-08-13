@@ -2015,15 +2015,8 @@ export class Enviroment implements EnviromentFunctions {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
-        if (hobject === 0) {
-            const next = w.objects.values().next();
-            return next.done ? 0 : next.value.handle;
-        }
-
-        let found = false;
-        for (const [nextH] of w.objects) {
-            if (found) return nextH;
-            if (nextH === hobject) found = true;
+        for (const handle of w.objects.keys()) {
+            if (handle > hobject) return handle;
         }
         return 0;
     }
