@@ -185,8 +185,11 @@ window.addEventListener("load", () => {
     // загрузка архива из папки projects
     const selectedProject = getStringQueryVar("project");
     if (selectedProject) {
-        fetch(`./projects/${selectedProject}.zip`)
-            .then((r) => r.blob())
-            .then((b) => loadProject([b], false));
+        // prettier-ignore
+        fetch(`./projects/${selectedProject}.zip`, {
+            headers: {
+                "for-testing-purposes": "yes",
+            },
+        }).then((r) => r.blob()).then((b) => loadProject([b], false));
     }
 });

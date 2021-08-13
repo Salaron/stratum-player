@@ -36,7 +36,7 @@ const watchDirs = ["src", `test/${target}`];
 // fileserver
 const server = http.createServer((request, response) => {
     const redirects = [{ source: "projects/:z+(.zip)", destination: "live?project=:z+" }];
-    if (target !== "live" || (request.headers.referer || "").includes("live")) {
+    if (target !== "live" || (request.headers["for-testing-purposes"] || "").includes("yes")) {
         redirects.pop();
     }
     return handler(request, response, { public: serveDir, redirects });
