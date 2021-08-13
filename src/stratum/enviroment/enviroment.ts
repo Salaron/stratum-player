@@ -335,7 +335,7 @@ export class Enviroment implements EnviromentFunctions {
         const callback = (vdr?: VectorDrawing | null): number => {
             const params = parseEnviromentWindowSettings(attrib, vdr);
             params.position = { x, y };
-            params.size = { width: w, height: h };
+            if (!params.size) params.size = { width: w, height: h };
 
             if (params.isChild) {
                 const parent = this.windows.get(parentWname);
