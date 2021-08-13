@@ -858,12 +858,14 @@ export class Enviroment implements EnviromentFunctions {
                 break;
             // Запуск системной команды
             case 4:
-                const cmdPath = hyp.target;
-                if (!cmdPath) break;
-                if (cmdPath.toUpperCase() === "CM_CLEARALL") {
+                const cmd = hyp.target?.toUpperCase();
+                if (!cmd) break;
+                if (cmd === "CM_CLEARALL") {
                     this._shouldQuit = true;
+                } else if (cmd === "CM_PREVPAGE") {
+                    prj.stop();
                 } else {
-                    console.warn(`Команда ${cmdPath} не реализована.`);
+                    console.warn(`Команда ${cmd} не реализована.`);
                 }
                 break;
             default:
