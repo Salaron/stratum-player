@@ -36,7 +36,7 @@ export class RealZipFS implements ZipFS {
         return fs;
     }
 
-    _updateHandlers = new Set<FileUpdateHandler>();
+    private updateHandlers = new Set<FileUpdateHandler>();
     private readonly disks = new Map<string, ZipDir>();
     merge(fs: RealZipFS): this {
         const { disks: otherDisks } = fs;
@@ -112,17 +112,18 @@ export class RealZipFS implements ZipFS {
     }
     fileExist(path: PathInfo): Promise<boolean> {
         const file = this.getFileOrDir(path);
-        return Promise.resolve(!!(file && !file?.isDir));
+        return Promise.resolve(!!(file && !file.isDir));
     }
     arraybuffer(path: PathInfo): Promise<ArrayBuffer | ArrayBufferView | null> {
         const file = this.getFileOrDir(path);
         if (!file || file.isDir) return Promise.resolve(null);
         return file.read();
     }
-    createFile(path: PathInfo): Promise<ReadWriteFile | null> {
+    createFile(path: PathInfo, data?: ArrayBuffer): Promise<ReadWriteFile | null> {
         const dir = this.getFileParent(path);
         if (!dir) return Promise.resolve(null);
-        const file = dir.createLocalFile(path.parts[path.parts.length - 1], new ArrayBuffer(0));
+        const file = dir.createFile(path.parts[path.parts.length - 1], data ?? new ArrayBuffer(0));
+        if (data) this._dispatchWriteEvent(path, data);
         return Promise.resolve(file);
     }
     file(path: PathInfo): ReadWriteFile | null {
@@ -142,17 +143,27 @@ export class RealZipFS implements ZipFS {
 
     on(event: "write", handler: FileUpdateHandler): this {
         if (event !== "write") return this;
-        this._updateHandlers.add(handler);
+        this.updateHandlers.add(handler);
         return this;
     }
 
     off(event: "write", handler?: FileUpdateHandler): this {
         if (event !== "write") return this;
         if (handler) {
-            this._updateHandlers.delete(handler);
+            this.updateHandlers.delete(handler);
         } else {
-            this._updateHandlers.clear();
+            this.updateHandlers.clear();
         }
         return this;
+    }
+
+    async _dispatchWriteEvent(pinfo: PathInfo, data: ArrayBuffer): Promise<boolean> {
+        const promises = [...this.updateHandlers].map((h) => h(pinfo, data));
+        try {
+            await Promise.all(promises);
+            return true;
+        } catch {
+            return false;
+        }
     }
 }

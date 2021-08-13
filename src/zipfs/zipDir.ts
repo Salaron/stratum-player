@@ -85,15 +85,23 @@ export class ZipDir implements FileInfo {
     //     return f;
     // }
 
-    private setLocalSafe(localName: string, fileOrDir: ZipDir | ZipFile) {
+    createLocalFile(localName: string, source: LazyBuffer): ZipFile {
+        const f = new ZipFile(localName, this, source);
+
         const prv = this.nodes.size;
-        this.nodes.set(localName.toUpperCase(), fileOrDir);
-        if (this.nodes.size === prv) throw Error(`Конфликт имен: ${fileOrDir.pinfo.toString()}`);
+        this.nodes.set(localName.toUpperCase(), f);
+        if (this.nodes.size === prv) throw Error(`Конфликт имен: ${f.pinfo.toString()}`);
+
+        return f;
     }
 
-    createLocalFile(name: string, source: LazyBuffer): ZipFile {
-        const f = new ZipFile(name, this, source);
-        this.setLocalSafe(name, f);
+    createFile(localName: string, source: LazyBuffer): ZipFile {
+        const f = new ZipFile(localName, this, source);
+
+        const nodeID = localName.toUpperCase();
+        if (this.nodes.get(nodeID)?.isDir) throw Error(`Каталог существует: ${f.pinfo.toString()}`);
+        this.nodes.set(nodeID, f);
+
         return f;
     }
 
