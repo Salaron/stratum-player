@@ -67,8 +67,12 @@ window.addEventListener("load", () => {
 
     let projectLoading = false;
     let stdLib: RealZipFS | undefined;
-    const loadProject = async (files: FileList | Blob[]) => {
+    const loadProject = async (files: FileList | Blob[], fromDropOrSelect: boolean) => {
         if (projectLoading || (project && project.state !== "closed") || !files || files.length === 0) return;
+        if (fromDropOrSelect) {
+            // Убираем project из QS, т.к. проект загружен не из папки projects
+            window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+        }
         projectLoading = true;
         dropzoneStatusElem.innerHTML = `Открываем архив${files.length > 1 ? "ы" : ""} ...`;
         if (!stdLib) {
@@ -173,16 +177,16 @@ window.addEventListener("load", () => {
         dropzoneStatusElem.innerHTML = dropzoneStatusOrigText;
         fileAboveWindow = false;
         if (evt.dataTransfer) {
-            loadProject(evt.dataTransfer.files);
+            loadProject(evt.dataTransfer.files, true);
         }
     });
-    document.getElementById("zipdrop")?.addEventListener("change", ({ target: { files } }: any) => loadProject(files));
+    document.getElementById("zipdrop")?.addEventListener("change", ({ target: { files } }: any) => loadProject(files, true));
 
     // загрузка архива из папки projects
     const selectedProject = getStringQueryVar("project");
     if (selectedProject) {
         fetch(`./projects/${selectedProject}.zip`)
             .then((r) => r.blob())
-            .then((b) => loadProject([b]));
+            .then((b) => loadProject([b], false));
     }
 });
