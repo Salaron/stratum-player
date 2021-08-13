@@ -176,6 +176,7 @@ window.addEventListener("load", () => {
             loadProject(evt.dataTransfer.files);
         }
     });
+    document.getElementById("zipdrop")?.addEventListener("change", ({ target: { files } }: any) => loadProject(files));
 
     // загрузка архива из папки projects
     const selectedProject = getStringQueryVar("project");
