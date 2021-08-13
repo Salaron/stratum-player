@@ -1,18 +1,12 @@
 let socket = new WebSocket(`ws://${location.host}`);
 
 let shouldRebuild = false;
-let pageActive = true;
-const setState = (active) => {
-    pageActive = active;
-    if (active && shouldRebuild) {
+document.addEventListener("visibilitychange", () => {
+    if (shouldRebuild && document.hidden === false) {
         socket.send("rebuild");
         shouldRebuild = false;
     }
-};
-
-document.addEventListener("visibilitychange", setState(!document.hidden), false);
-window.addEventListener("focus", () => setState(true), false);
-window.addEventListener("blur", () => setState(false), false);
+});
 
 // socket.onopen = () => console.log("[open] Соединение установлено");
 // socket.onclose = () => console.log("[close] Соединение закрыто");
@@ -20,8 +14,8 @@ socket.onerror = () => console.error("[error] вебсокет сломался"
 socket.onmessage = (evt) => {
     if (evt.data === "refresh") document.location.reload();
     if (evt.data === "changed") {
-        if (pageActive) socket.send("rebuild");
-        shouldRebuild = !pageActive;
+        if (!document.hidden) socket.send("rebuild");
+        shouldRebuild = document.hidden;
     }
 };
 
