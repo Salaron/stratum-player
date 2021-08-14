@@ -39,6 +39,7 @@ const server = http.createServer((request, response) => {
     if (target !== "live" || (request.headers["for-testing-purposes"] || "").includes("yes")) {
         redirects.pop();
     }
+    response.setHeader("Cache-Control", " no-cache, no-store, must-revalidate");
     return handler(request, response, { public: serveDir, redirects });
 });
 server.listen(port, () => {
