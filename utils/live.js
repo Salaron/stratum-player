@@ -34,7 +34,14 @@ if (!fs.existsSync(outDeps)) {
 const watchDirs = ["src", `test/${target}`];
 
 // fileserver
-const server = http.createServer((req, res) => handler(req, res, { public: serveDir }));
+const server = http.createServer((request, response) => {
+    const redirects = [{ source: "projects/:z+(.zip)", destination: "live?project=:z+" }];
+    if (target !== "live" || (request.headers["for-testing-purposes"] || "").includes("yes")) {
+        redirects.pop();
+    }
+    response.setHeader("Cache-Control", " no-cache, no-store, must-revalidate");
+    return handler(request, response, { public: serveDir, redirects });
+});
 server.listen(port, () => {
     console.log(`Running at http://localhost:${port}/${target}`);
 });
