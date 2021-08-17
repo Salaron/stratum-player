@@ -92,7 +92,7 @@ export function createElements(scene: Scene, tools: EnviromentElementsTools, ele
                 return [e.handle, new graphicsImpl.text(scene, tool, args)];
             }
             case "control": {
-                if (e.inputType !== "EDIT") throw Error(`Элемент ввода ${e.inputType} не реализован.`);
+                if (e.inputType !== "EDIT") console.warn(`Элемент ввода ${e.inputType} не реализован.`);
                 const args: InputElement2DArgs = {
                     handle: e.handle,
                     name: e.name,
