@@ -1082,23 +1082,49 @@ export class Enviroment implements EnviromentFunctions {
     }
 
     //#region ФУНКЦИИ ПРОЧИЕ
-    stratum_isDlgButtonChecked2d(hspace: number, hobject: number): number {
+    private enableControl2dShowed = false;
+stratum_enableControl2d (hspace : number, hobject : number, state : number) : NumBool {
+        if(!this.enableControl2dShowed) {
+            console.warn("enableControl2d не реализована");
+            this.enableControl2dShowed = true;
+        }
         return 0;
     }
 
+
+    private isDlgButtonCheckedShowed = false;
+    stratum_isDlgButtonChecked2d(hspace: number, hobject: number): 0 | 1 | 2 {
+        if(!this.isDlgButtonCheckedShowed) {
+            console.warn("isDlgButtonChecked не реализована");
+            this.isDlgButtonCheckedShowed = true;
+        }
+        return 0;
+    }
+
+    private checkDlgButton2dShowed = false;
     stratum_checkDlgButton2d(hspace: number, hobject: number, state: number): NumBool {
+        if(!this.checkDlgButton2dShowed) {
+            console.warn("checkDlgButton2d не реализована");
+            this.checkDlgButton2dShowed = true;
+        }
         return 1;
     }
 
     private setObjectAttribute2dShowed = false;
     stratum_setObjectAttribute2d(hspace: number, hobject: number, attr: number, flag: number): NumBool {
         if (!this.setObjectAttribute2dShowed) {
-            console.warn("stratum_setObjectAttribute2d не реализована");
+            console.warn("setObjectAttribute2d не реализована");
             this.setObjectAttribute2dShowed = true;
         }
         return 1;
     }
+
+    private setScrollRangeShowed = false;
     stratum_setScrollRange(wname: string, type: number, min: number, max: number): NumBool {
+        if (!this.setScrollRangeShowed) {
+            console.warn("setScrollRange не реализована");
+            this.setScrollRangeShowed = true;
+        }
         return 1;
     }
 
