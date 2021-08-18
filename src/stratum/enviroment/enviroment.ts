@@ -1083,18 +1083,17 @@ export class Enviroment implements EnviromentFunctions {
 
     //#region ФУНКЦИИ ПРОЧИЕ
     private enableControl2dShowed = false;
-stratum_enableControl2d (hspace : number, hobject : number, state : number) : NumBool {
-        if(!this.enableControl2dShowed) {
+    stratum_enableControl2d(hspace: number, hobject: number, state: number): NumBool {
+        if (!this.enableControl2dShowed) {
             console.warn("enableControl2d не реализована");
             this.enableControl2dShowed = true;
         }
         return 0;
     }
 
-
     private isDlgButtonCheckedShowed = false;
     stratum_isDlgButtonChecked2d(hspace: number, hobject: number): 0 | 1 | 2 {
-        if(!this.isDlgButtonCheckedShowed) {
+        if (!this.isDlgButtonCheckedShowed) {
             console.warn("isDlgButtonChecked не реализована");
             this.isDlgButtonCheckedShowed = true;
         }
@@ -1103,7 +1102,7 @@ stratum_enableControl2d (hspace : number, hobject : number, state : number) : Nu
 
     private checkDlgButton2dShowed = false;
     stratum_checkDlgButton2d(hspace: number, hobject: number, state: number): NumBool {
-        if(!this.checkDlgButton2dShowed) {
+        if (!this.checkDlgButton2dShowed) {
             console.warn("checkDlgButton2d не реализована");
             this.checkDlgButton2dShowed = true;
         }
