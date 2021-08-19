@@ -61,11 +61,16 @@ export async function loadProjectResources(prjFile: PathInfo, classes: LazyLibra
             classDirs.push(workDir.resolve(localPath));
         }
     }
-    const dirs = args.addDirs ? classDirs.concat(args.addDirs) : classDirs;
 
     // Имиджи.
     // await new Promise((res) => setTimeout(res, 2000));
-    await classes.add(workDir.fs, dirs, /*!prjInfo.settings?.notRecursive*/ true, args.id);
+    const pr1 = classes.add(workDir.fs, classDirs, !prjInfo.settings?.notRecursive, args.id);
+    if (args.addDirs) {
+        const pr2 = classes.add(workDir.fs, args.addDirs, true, args.id);
+        await Promise.all([pr1, pr2]);
+    } else {
+        await pr1;
+    }
 
     return { classes, dir: workDir, prjInfo, stt, filepath: prjFile.toString() };
 }
