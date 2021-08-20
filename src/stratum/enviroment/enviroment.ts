@@ -2040,10 +2040,11 @@ export class Enviroment implements EnviromentFunctions {
         const w = this.scenes.get(hspace);
         if (!w) return 0;
 
+        let minHandle = Infinity;
         for (const handle of w.objects.keys()) {
-            if (handle > hobject) return handle;
+            if (handle > hobject && handle < minHandle) minHandle = handle;
         }
-        return 0;
+        return minHandle === Infinity ? 0 : minHandle;
     }
     stratum_deleteObject2d(hspace: number, hobject: number): NumBool {
         const w = this.scenes.get(hspace);
