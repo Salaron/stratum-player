@@ -2776,7 +2776,15 @@ export class Enviroment implements EnviromentFunctions {
         if (!stream) return 0;
         const cl = this.classes.get(classname);
         if (!cl) return 0;
-        cl.setCode(stream.text());
+        const text = stream.text();
+        if (showError === 0) {
+            try {
+                cl.setCode(text);
+            } catch {}
+        } else {
+            cl.setCode(text);
+        }
+
         return 1;
     }
 
