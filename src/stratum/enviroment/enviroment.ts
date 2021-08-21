@@ -2780,11 +2780,12 @@ export class Enviroment implements EnviromentFunctions {
         if (showError === 0) {
             try {
                 cl.setCode(text);
-            } catch {}
-        } else {
-            cl.setCode(text);
+                return 1;
+            } catch {
+                return 0;
+            }
         }
-
+        cl.setCode(text);
         return 1;
     }
 
