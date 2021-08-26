@@ -101,9 +101,8 @@ export class Element2D {
     size(w: number, h: number): this {
         if (w < 0 || h < 0) return this;
 
-        const cw = this._width;
-        const ch = this._height;
-        if (cw === 0 || ch === 0) return this;
+        const cw = this._width || 1;
+        const ch = this._height || 1;
 
         const dx = w / cw;
         const dy = h / ch;

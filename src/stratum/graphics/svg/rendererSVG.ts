@@ -253,7 +253,7 @@ export class RendererSVG extends Scene implements EventListenerObject {
 
         for (const e of el) {
             const f = this.svgOrder.find((s) => s._svg.contains(e));
-            if (f) return f;
+            if (f && !f.unselectable) return f;
         }
         return null;
         // return (el.length > && this.svgOrder.find((e) => e._svg.contains(el))) || null;
